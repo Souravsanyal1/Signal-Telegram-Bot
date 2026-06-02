@@ -8,61 +8,56 @@ const autotrade = require('./autotrade');
 // Track latest volume from depth/change events to augment price analysis
 const latestVolumes = {};
 
-// ======== Signal Stagger Queue ========
-// Prevents flooding: signals arrive 1-2 minutes apart
-const signalQueue = [];
-let isProcessingQueue = false;
+// ======== 1-Minute Signal Aggregation Buffer ========
+// Collects signals over 60 seconds and sends ONLY the most accurate one
+let signalBuffer = [];
+let bufferTimerStarted = false;
 
 function enqueueSignal(signal) {
-  signalQueue.push({ signal, queuedAt: Date.now() });
-  console.log(`📥 [Queue] Signal queued for ${signal.asset} (${signal.type}). Queue length: ${signalQueue.length}`);
-  if (!isProcessingQueue) {
-    processSignalQueue();
+  signalBuffer.push(signal);
+  console.log(`📥 [Buffer] Signal added for ${signal.asset} (${signal.type}) with confidence ${signal.confidence}%. Buffer size: ${signalBuffer.length}`);
+  
+  if (!bufferTimerStarted) {
+    startBufferTimer();
   }
 }
 
-async function processSignalQueue() {
-  if (signalQueue.length === 0) {
-    isProcessingQueue = false;
-    return;
-  }
-
-  isProcessingQueue = true;
-  const item = signalQueue.shift();
-
-  let sent = false;
-  try {
-    // Send the signal now
-    console.log(`📤 [Queue] Dispatching signal: ${item.signal.asset} ${item.signal.type}`);
-    sent = await telegram.sendSignal(item.signal);
-    
-    // If successfully sent and auto trading is enabled, place trade
-    if (sent && process.env.AUTO_TRADE_ENABLED === 'true') {
-      autotrade.placeTrade(item.signal);
-    }
-  } catch (error) {
-    console.error(`❌ [Queue] Error sending signal:`, error.message);
-  }
-
-  // If more signals remain, calculate delay
-  if (signalQueue.length > 0) {
-    // Small stagger (2-4 seconds) between simultaneous signals to prevent Telegram flooding,
-    // but keep messages flowing continuously.
-    const delayMs = sent ? (2000 + Math.floor(Math.random() * 2000)) : 500;
-    
-    if (sent) {
-      console.log(`⏳ [Queue] Next signal in ${(delayMs / 1000).toFixed(1)}s (${signalQueue.length} remaining)`);
-    } else {
-      console.log(`⏭️ [Queue] Signal suppressed/failed. Skipping delay. (${signalQueue.length} remaining)`);
+function startBufferTimer() {
+  bufferTimerStarted = true;
+  console.log(`⏱️ [Buffer] 1-minute aggregation timer started...`);
+  
+  setInterval(async () => {
+    if (signalBuffer.length === 0) {
+      console.log(`⏳ [Buffer] 1 minute passed, but no signals generated. Waiting...`);
+      return;
     }
 
-    setTimeout(() => {
-      processSignalQueue();
-    }, delayMs);
-  } else {
-    isProcessingQueue = false;
-  }
+    // Sort buffer by confidence descending (highest confidence first)
+    signalBuffer.sort((a, b) => b.confidence - a.confidence);
+    
+    // Pick the most accurate signal
+    const bestSignal = signalBuffer[0];
+    const totalGathered = signalBuffer.length;
+    
+    // Clear buffer for the next minute
+    signalBuffer = [];
+    
+    console.log(`🎯 [Buffer] 1 minute passed. Picked most accurate signal (${bestSignal.asset} ${bestSignal.confidence}%) out of ${totalGathered} signals.`);
+    
+    let sent = false;
+    try {
+      sent = await telegram.sendSignal(bestSignal);
+      
+      // If successfully sent and auto trading is enabled, place trade
+      if (sent && process.env.AUTO_TRADE_ENABLED === 'true') {
+        autotrade.placeTrade(bestSignal);
+      }
+    } catch (error) {
+      console.error(`❌ [Buffer] Error sending signal:`, error.message);
+    }
+  }, 60000); // Exactly 1 minute (60,000 ms)
 }
+
 
 // ======== Main Entry Point ========
 function main() {
