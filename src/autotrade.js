@@ -10,7 +10,6 @@
 
 const axios = require('axios');
 const { CookieJar } = require('tough-cookie');
-const { wrapper } = require('axios-cookiejar-support');
 const { io } = require('socket.io-client');
 const fs = require('fs');
 const path = require('path');
@@ -27,9 +26,13 @@ class AutoTrader {
     this.tradeAmount = parseFloat(process.env.TRADE_AMOUNT) || 10;
     this.isDemo = process.env.TRADE_DEMO !== 'false'; // Default: Demo mode
     this.requestId = Math.floor(Math.random() * 1000000);
-
-    // Setup axios with cookie jar
     this.jar = new CookieJar();
+    this.client = null; // Will be initialized in init()
+  }
+
+  async initializeClient() {
+    // Dynamically import ESM module
+    const { wrapper } = await import('axios-cookiejar-support');
     this.client = wrapper(axios.create({
       jar: this.jar,
       withCredentials: true,
@@ -44,6 +47,9 @@ class AutoTrader {
   }
 
   async init() {
+    // Initialize the HTTP client first
+    await this.initializeClient();
+    
     console.log('🤖 [AutoTrade] Initializing Direct API Auto Trader (No Browser)...');
     console.log(`💰 [AutoTrade] Trade Amount: $${this.tradeAmount} | Mode: ${this.isDemo ? 'DEMO' : 'REAL'}`);
 
