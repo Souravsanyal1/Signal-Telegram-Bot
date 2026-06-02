@@ -57,8 +57,16 @@ class TelegramManager {
   }
 
   setupCommandListeners() {
+    console.log('📍 Setting up command listeners - waiting for /start and commands...');
+
+    // Error handler for polling issues
+    this.bot.on('polling_error', (error) => {
+      console.error('❌ [Telegram Polling Error]', error.message);
+    });
+
     // 1. Welcome and Membership Gatekeeper
     this.bot.onText(/\/start/, async (msg) => {
+      console.log(`📨 /start command received from user: ${msg.from.id} (${msg.from.first_name})`);
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
 
@@ -162,9 +170,13 @@ class TelegramManager {
 
     // 2. Admin Commands implementation
     this.bot.onText(/\/addpaid (.+)/, (msg, match) => {
+      console.log(`📨 /addpaid command from ${msg.from.id}`);
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
-      if (userId !== this.adminId) return;
+      if (userId !== this.adminId) {
+        console.log(`⛔ /addpaid rejected - not admin (${userId} !== ${this.adminId})`);
+        return;
+      }
 
       const targetId = match[1].trim();
       this.paidUsers.add(targetId);
