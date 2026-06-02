@@ -28,8 +28,12 @@ class TelegramManager {
     this.winScoreRatio = 91.2;
     this.lastSignals = {};
 
-    if (this.bot) {
+    // Only set up command listeners in development mode (polling required)
+    if (this.bot && pollingEnabled) {
+      console.log('🎯 [Telegram] Command listeners enabled (polling mode)');
       this.setupCommandListeners();
+    } else if (this.bot) {
+      console.log('📡 [Telegram] Running in signal-only mode (production - no polling)');
     }
   }
 
