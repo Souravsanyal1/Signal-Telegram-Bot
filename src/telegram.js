@@ -289,8 +289,9 @@ class TelegramManager {
     const escapedReason = escapeHTML(reason);
 
     // Dynamic Quotex Real/OTC Market checking
-    const isOTC = asset.toUpperCase().includes('OTC') || new Date().getDay() === 0 || new Date().getDay() === 6;
-    const marketType = isOTC ? 'Quotex OTC Market' : 'Quotex Real Market';
+    const dayOfWeek = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+    const isOTC = asset.toUpperCase().includes('OTC') || dayOfWeek === 0 || dayOfWeek === 6;
+    const marketType = isOTC ? 'Quotex OTC Market (Active Today)' : 'Quotex Real Market (Active Today)';
 
     if (type === 'BUY') {
       message = `🟩🟩🟩 <b>REAL-TIME VIP SIGNAL</b> 🟩🟩🟩\n\n` +
@@ -299,7 +300,8 @@ class TelegramManager {
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
                 `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
-                `⚡ <b>Action:</b> <code>Buy immediately or check breakout confirmation</code>\n\n` +
+                `⚡ <b>Action:</b> <code>Buy immediately or check breakout confirmation</code>\n` +
+                `🔗 <b>Trade Platform:</b> <a href="https://market-qx.trade/en/trade">Click to Trade on Quotex</a>\n\n` +
                 `📊 <b>Technical Analysis:</b>\n` +
                 `👉 <i>${escapedReason}</i>\n\n` +
                 `⏳ <b>Powered by:</b> ${this.botName}`;
@@ -310,7 +312,8 @@ class TelegramManager {
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
                 `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
-                `⚡ <b>Action:</b> <code>Sell immediately or check reversal confirmation</code>\n\n` +
+                `⚡ <b>Action:</b> <code>Sell immediately or check reversal confirmation</code>\n` +
+                `🔗 <b>Trade Platform:</b> <a href="https://market-qx.trade/en/trade">Click to Trade on Quotex</a>\n\n` +
                 `📊 <b>Technical Analysis:</b>\n` +
                 `👉 <i>${escapedReason}</i>\n\n` +
                 `⏳ <b>Powered by:</b> ${this.botName}`;
