@@ -49,7 +49,7 @@ function startBufferTimer() {
       sent = await telegram.sendSignal(bestSignal);
       
       // If successfully sent and auto trading is enabled, place trade
-      if (sent && autotrade && process.env.AUTO_TRADE_ENABLED === 'true') {
+      if (sent && autotrade && config.autoTrade.enabled) {
         autotrade.placeTrade(bestSignal);
       }
     } catch (error) {
@@ -67,7 +67,7 @@ function main() {
   server.startServer();
 
   // Initialize AutoTrader if enabled
-  if (process.env.AUTO_TRADE_ENABLED === 'true') {
+  if (config.autoTrade.enabled) {
     const AutoTrader = require('./autotrade');
     autotrade = new AutoTrader();
     autotrade.init();
