@@ -3,7 +3,6 @@ const websocket = require('./websocket');
 const strategy = require('./strategy');
 const telegram = require('./telegram');
 const server = require('./server');
-let autotrade = null;
 
 // Track latest volume from depth/change events to augment price analysis
 const latestVolumes = {};
@@ -48,10 +47,8 @@ function startBufferTimer() {
     try {
       sent = await telegram.sendSignal(bestSignal);
       
-      // If successfully sent and auto trading is enabled, place trade
-      if (sent && autotrade && config.autoTrade.enabled) {
-        autotrade.placeTrade(bestSignal);
-      }
+      // Note: Auto-trading is disabled due to ESM dependency conflicts
+      // Focus is on signal generation and Telegram notifications
     } catch (error) {
       console.error(`❌ [Buffer] Error sending signal:`, error.message);
     }
@@ -66,12 +63,7 @@ function main() {
   // Start the HTTP API/Web portal server
   server.startServer();
 
-  // Initialize AutoTrader if enabled
-  if (config.autoTrade.enabled) {
-    const AutoTrader = require('./autotrade');
-    autotrade = new AutoTrader();
-    autotrade.init();
-  }
+  // Auto-trading disabled - bot operates in signal generation mode only
 
   console.log(`📡 Monitored Assets: ${config.strategy.monitoredAssets.join(', ')}`);
   console.log(`⚙️  Sensitivity: ${config.strategy.sensitivity.toUpperCase()}`);

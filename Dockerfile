@@ -16,9 +16,8 @@ COPY . .
 # Expose the port
 EXPOSE 3000
 
-# Set environment variables - disable auto trading by default
+# Set environment variables
 ENV NODE_ENV=production
-ENV AUTO_TRADE_ENABLED=false
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
