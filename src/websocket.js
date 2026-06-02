@@ -9,6 +9,10 @@ class WebSocketManager {
     this.simulationInterval = null;
   }
 
+  on(event, callback) {
+    this.callbacks[event] = callback;
+  }
+
   connect() {
     if (config.websocket.simulate) {
       console.log('🤖 [WebSocket] Starting in SIMULATED market mode...');
