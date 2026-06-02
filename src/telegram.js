@@ -87,44 +87,75 @@ class TelegramManager {
       const isPaid = this.paidUsers.has(userId);
 
       if (isAdmin) {
-        this.bot.sendMessage(chatId, 
-          `👑 <b>REAL-TIME SUPER QUANT ENGINE (ADMIN)</b> 👑\n\n` +
-          `Welcome Master Admin. Live server status is stable.\n\n` +
-          `📈 <b>Quant Algorithm Statistics:</b>\n` +
-          `• Total Signals: <code>${this.totalSignalsSent}</code>\n` +
-          `• Winrate Average: <code>${this.winScoreRatio.toFixed(1)}%</code>\n` +
-          `• Paid Subscriptions: <code>${this.paidUsers.size}</code>\n` +
-          `• System Uptime: <code>${((Date.now() - this.startTime) / 60000).toFixed(1)} mins</code>\n\n` +
-          `<b>Admin Commands Available:</b>\n` +
-          `👉 <code>/addpaid &lt;UserID&gt;</code> - Add paid user\n` +
-          `👉 <code>/removepaid &lt;UserID&gt;</code> - Remove paid user\n` +
-          `👉 <code>/listpaid</code> - View all paid users\n` +
-          `👉 <code>/panel</code> - View advanced controls`, 
-          { parse_mode: 'HTML' }
-        );
-      } else if (isPaid) {
-        this.bot.sendMessage(chatId,
-          `🟩 <b>VIP MEMBERSHIP CONTROL</b> 🟩\n\n` +
-          `Your subscription is active. Use /panel to adjust custom alerts.`,
-          { parse_mode: 'HTML' }
-        );
-      } else {
-        const opts = {
+        const adminOpts = {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '💳 Open Payment Portal', callback_data: 'subscribe_info' }],
-              [{ text: '💬 Contact Master Admin', url: 'https://t.me/Souravsanyal1' }]
+              [{ text: '⚙️ Admin Panel', callback_data: 'admin_panel' }],
+              [{ text: '📊 View Stats', callback_data: 'view_stats' }],
+              [{ text: '👥 Manage Users', callback_data: 'manage_users' }]
+            ]
+          },
+          parse_mode: 'HTML'
+        };
+        this.bot.sendMessage(chatId, 
+          `👑 <b>SUPER QUANT ENGINE - ADMIN MODE</b> 👑\n\n` +
+          `Welcome Master Admin @Souravsanyal. System is operational.\n\n` +
+          `📈 <b>Quant Algorithm Statistics:</b>\n` +
+          `• Total Signals Sent: <code>${this.totalSignalsSent}</code>\n` +
+          `• Average Winrate: <code>${this.winScoreRatio.toFixed(1)}%</code>\n` +
+          `• Active Subscribers: <code>${this.paidUsers.size}</code>\n` +
+          `• System Uptime: <code>${((Date.now() - this.startTime) / 60000).toFixed(1)} minutes</code>\n\n` +
+          `<b>🎮 Quick Commands:</b>\n` +
+          `<code>/addpaid [UserID]</code> - Add paid user\n` +
+          `<code>/removepaid [UserID]</code> - Remove user\n` +
+          `<code>/listpaid</code> - View all subscribers`,
+          adminOpts
+        );
+      } else if (isPaid) {
+        const vipOpts = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📊 View Performance', callback_data: 'vip_stats' }],
+              [{ text: '⚙️ Settings', callback_data: 'vip_settings' }]
             ]
           },
           parse_mode: 'HTML'
         };
         this.bot.sendMessage(chatId,
-          `🔒 <b>VIP ACCESS REQUIRED</b> 🔒\n\n` +
-          `This bot uses a Super Advanced Multi-Indicator Fusion Quant Engine (MACD, Bollinger, Stochastic, and ATR).\n\n` +
-          `Status: <b>Access Denied (Free tier restricted)</b>\n` +
+          `💎 <b>VIP PREMIUM SIGNALS</b> 💎\n\n` +
+          `Welcome to the Elite Trading Community!\n\n` +
+          `✅ Your subscription is <b>ACTIVE</b>\n` +
           `Your ID: <code>${userId}</code>\n\n` +
-          `Please purchase a subscription to unlock instant Quotex signals.`,
-          opts
+          `🎯 <b>You will receive:</b>\n` +
+          `• Real-time multi-indicator signals\n` +
+          `• High-accuracy trade entries\n` +
+          `• Risk management guidance\n` +
+          `• 24/7 signal updates`,
+          vipOpts
+        );
+      } else {
+        const freeOpts = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '💙 Subscribe Now', url: 'https://signal-pay-app-bot.web.app/' }],
+              [{ text: '💚 Contact Admin', url: 'https://t.me/Souravsanyal1' }]
+            ]
+          },
+          parse_mode: 'HTML'
+        };
+        this.bot.sendMessage(chatId,
+          `🔒 <b>VIP SIGNAL BOT CONTROL PANEL</b> 🔒\n\n` +
+          `<b>Status:</b> Access Denied (Unsubscribed)\n` +
+          `<b>Your Telegram ID:</b> <code>${userId}</code>\n\n` +
+          `⚡ <b>This Control Panel is a PAID SERVICE</b>\n` +
+          `Unlock instant premium market alerts and real-time trading signals!\n\n` +
+          `💙 <b>Subscribe</b> to get:\n` +
+          `✓ Instant trading signals\n` +
+          `✓ Multi-indicator analysis\n` +
+          `✓ High accuracy forecasts\n` +
+          `✓ Quotex platform integration\n\n` +
+          `Click the blue button below to subscribe and unlock access.`,
+          freeOpts
         );
       }
     });

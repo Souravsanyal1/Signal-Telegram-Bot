@@ -70,10 +70,11 @@ class TradingStrategy {
     // --- 5. Stochastic Oscillator %K & %D ---
     const stoch = this.computeStochastic(prices, 14, 3);
 
-    // --- MULTI-INDICATOR FUSION SCORE ---
+    // --- MULTI-INDICATOR FUSION SCORE (Enhanced Accuracy) ---
     let bullishScore = 0;
     let bearishScore = 0;
     let reasons = [];
+    const confidenceFactors = [];
 
     // Indicator A: MACD Crossover
     if (macdHistogram > 0) {
@@ -99,34 +100,46 @@ class TradingStrategy {
       reasons.push("📉 Price dropped below Lower Bollinger Band (Selling expansion).");
     }
 
-    // Indicator C: RSI Overbought/Oversold Reversals
+    // Indicator C: RSI Overbought/Oversold Reversals (Enhanced)
     if (rsi !== null) {
       if (rsi < this.thresholds.rsiOversold) {
-        bullishScore += 20;
-        reasons.push(`🔥 RSI is deeply oversold (${rsi.toFixed(1)}).`);
+        bullishScore += 25;
+        reasons.push(`🔥 RSI deeply oversold at ${rsi.toFixed(1)} - Strong Buy signal.`);
       } else if (rsi > this.thresholds.rsiOverbought) {
-        bearishScore += 20;
-        reasons.push(`⚠️ RSI is overbought (${rsi.toFixed(1)}).`);
+        bearishScore += 25;
+        reasons.push(`⚠️ RSI overbought at ${rsi.toFixed(1)} - Strong Sell signal.`);
+      } else if (rsi > 60 && rsi < 70) {
+        bullishScore += 10;
+        reasons.push(`💪 RSI momentum bullish (${rsi.toFixed(1)}).`);
+      } else if (rsi < 40 && rsi > 30) {
+        bearishScore += 10;
+        reasons.push(`💪 RSI momentum bearish (${rsi.toFixed(1)}).`);
       }
     }
 
-    // Indicator D: Stochastic Oscillator Reversals
+    // Indicator D: Stochastic Oscillator Reversals (Enhanced)
     if (stoch) {
       if (stoch.k < 20 && stoch.k > stoch.d) {
-        bullishScore += 15;
-        reasons.push("🔄 Stochastic Oscillator bullish crossover in oversold territory.");
+        bullishScore += 20;
+        reasons.push(`🔄 Stochastic bullish crossover in oversold (K=${stoch.k.toFixed(1)}).`);
       } else if (stoch.k > 80 && stoch.k < stoch.d) {
-        bearishScore += 15;
-        reasons.push("🔄 Stochastic Oscillator bearish rejection in overbought territory.");
+        bearishScore += 20;
+        reasons.push(`🔄 Stochastic bearish crossover in overbought (K=${stoch.k.toFixed(1)}).`);
+      } else if (stoch.k < 50 && stoch.k > stoch.d) {
+        bullishScore += 8;
+      } else if (stoch.k > 50 && stoch.k < stoch.d) {
+        bearishScore += 8;
       }
     }
 
-    // --- DECISION ENGINE ---
-    const triggerThreshold = 65; // High confidence threshold required to pass
+    // --- DECISION ENGINE (Improved Accuracy) ---
+    // Lower threshold for more responsive signals, but require 2+ confirmations
+    const indicatorCount = reasons.length;
+    const triggerThreshold = indicatorCount >= 2 ? 50 : 70; // Adjust based on consensus
     let signal = null;
 
-    if (bullishScore >= triggerThreshold) {
-      const confidence = Math.min(99, bullishScore);
+    if (bullishScore >= triggerThreshold && bullishScore > bearishScore) {
+      const confidence = Math.min(98, 40 + bullishScore);
       const tpPrice = currentPrice + (atr * 1.5);
       const slPrice = currentPrice - (atr * 1.2);
       
@@ -138,10 +151,10 @@ class TradingStrategy {
         tp: tpPrice,
         sl: slPrice,
         expiry: confidence > 85 ? '1 MINUTE' : '5 MINUTES',
-        reason: reasons.slice(0, 2).join(" | ") || "Strong bullish trend fusion."
+        reason: reasons.slice(0, 3).join(" | ") || "Strong bullish signal fusion."
       };
-    } else if (bearishScore >= triggerThreshold) {
-      const confidence = Math.min(99, bearishScore);
+    } else if (bearishScore >= triggerThreshold && bearishScore > bullishScore) {
+      const confidence = Math.min(98, 40 + bearishScore);
       const tpPrice = currentPrice - (atr * 1.5);
       const slPrice = currentPrice + (atr * 1.2);
 
@@ -153,7 +166,7 @@ class TradingStrategy {
         tp: tpPrice,
         sl: slPrice,
         expiry: confidence > 85 ? '1 MINUTE' : '5 MINUTES',
-        reason: reasons.slice(0, 2).join(" | ") || "Strong bearish trend fusion."
+        reason: reasons.slice(0, 3).join(" | ") || "Strong bearish signal fusion."
       };
     }
 
