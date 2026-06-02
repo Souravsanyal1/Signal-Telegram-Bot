@@ -31,10 +31,49 @@ class TelegramManager {
     // Only set up command listeners in development mode (polling required)
     if (this.bot && pollingEnabled) {
       console.log('🎯 [Telegram] Command listeners enabled (polling mode)');
+      this.verifyBotPermissions();
       this.setupCommandListeners();
     } else if (this.bot) {
       console.log('📡 [Telegram] Running in signal-only mode (production - no polling)');
     }
+  }
+
+  /**
+   * Verify bot has admin permissions in the channel
+   */
+  async verifyBotPermissions() {
+    if (!this.bot || !this.chatId) return;
+
+    try {
+      const botMe = await this.bot.getMe();
+      const botId = botMe.id;
+      console.log(`🤖 Bot ID: ${botId} (@${botMe.username})`);
+
+      const botMember = await this.bot.getChatMember(this.chatId, botId);
+      
+      if (botMember.status === 'administrator' || botMember.status === 'creator') {
+        console.log(`✅ [Bot Admin Check] Bot HAS ADMIN RIGHTS in channel ${this.chatId}`);
+        console.log(`   • can_post_messages: ${botMember.can_post_messages}`);
+        console.log(`   • can_edit_messages: ${botMember.can_edit_messages}`);
+        console.log(`   • can_delete_messages: ${botMember.can_delete_messages}`);
+        console.log(`   • can_pin_messages: ${botMember.can_pin_messages}`);
+        return true;
+      } else if (botMember.status === 'member') {
+        console.warn(`⚠️ [Bot Admin Check] Bot is MEMBER (not admin) in channel ${this.chatId}`);
+        console.warn(`   👉 Please make the bot an ADMIN in your Telegram channel!`);
+        console.warn(`   Steps: Open channel → Add members → Search bot → Select as Admin`);
+        return false;
+      } else if (botMember.status === 'left' || botMember.status === 'kicked') {
+        console.error(`❌ [Bot Admin Check] Bot is NOT IN channel ${this.chatId}`);
+        console.error(`   👉 Please add the bot to your Telegram channel first!`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ [Bot Admin Check] Failed to verify permissions:`, error.message);
+      console.error(`   Make sure TELEGRAM_CHAT_ID is correct and bot is in the channel`);
+      return false;
+    }
+  }
   }
 
   /**
@@ -57,16 +96,27 @@ class TelegramManager {
   }
 
   setupCommandListeners() {
-    console.log('📍 Setting up command listeners - waiting for /start and commands...');
+    console.log('📍 Setting up command listeners - waiting for /start and commands in CHANNEL ONLY...');
 
     // Error handler for polling issues
     this.bot.on('polling_error', (error) => {
       console.error('❌ [Telegram Polling Error]', error.message);
     });
 
-    // 1. Welcome and Membership Gatekeeper
+    // 1. Welcome and Membership Gatekeeper - CHANNEL ONLY
     this.bot.onText(/\/start/, async (msg) => {
-      console.log(`📨 /start command received from user: ${msg.from.id} (${msg.from.first_name})`);
+      console.log(`📨 /start command received from user: ${msg.from.id} (${msg.from.first_name}), Chat: ${msg.chat.type}`);
+      
+      // Only respond in CHANNEL/SUPERGROUP context, not private DMs
+      if (msg.chat.type !== 'supergroup' && msg.chat.type !== 'group' && msg.chat.type !== 'channel') {
+        console.log(`⛔ /start ignored - must be used in channel, not in private chat`);
+        return this.bot.sendMessage(msg.chat.id, 
+          `❌ <b>This bot works only in the official Telegram CHANNEL.</b>\n\n` +
+          `Please use /start in the channel, not in private DMs.`, 
+          { parse_mode: 'HTML' }
+        );
+      }
+
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
 
@@ -168,9 +218,16 @@ class TelegramManager {
       }
     });
 
-    // 2. Admin Commands implementation
+    // 2. Admin Commands implementation - CHANNEL ONLY
     this.bot.onText(/\/addpaid (.+)/, (msg, match) => {
       console.log(`📨 /addpaid command from ${msg.from.id}`);
+      
+      // Channel-only check
+      if (msg.chat.type !== 'supergroup' && msg.chat.type !== 'group') {
+        console.log(`⛔ /addpaid ignored - must be used in channel`);
+        return;
+      }
+
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
       if (userId !== this.adminId) {
@@ -185,6 +242,12 @@ class TelegramManager {
     });
 
     this.bot.onText(/\/removepaid (.+)/, (msg, match) => {
+      // Channel-only check
+      if (msg.chat.type !== 'supergroup' && msg.chat.type !== 'group') {
+        console.log(`⛔ /removepaid ignored - must be used in channel`);
+        return;
+      }
+
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
       if (userId !== this.adminId) return;
@@ -199,6 +262,12 @@ class TelegramManager {
     });
 
     this.bot.onText(/\/listpaid/, (msg) => {
+      // Channel-only check
+      if (msg.chat.type !== 'supergroup' && msg.chat.type !== 'group') {
+        console.log(`⛔ /listpaid ignored - must be used in channel`);
+        return;
+      }
+
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
       if (userId !== this.adminId) return;
@@ -215,6 +284,12 @@ class TelegramManager {
     });
 
     this.bot.onText(/\/panel/, async (msg) => {
+      // Channel-only check
+      if (msg.chat.type !== 'supergroup' && msg.chat.type !== 'group') {
+        console.log(`⛔ /panel ignored - must be used in channel`);
+        return;
+      }
+
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
 
