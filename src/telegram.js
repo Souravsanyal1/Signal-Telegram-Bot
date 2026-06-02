@@ -74,7 +74,6 @@ class TelegramManager {
       return false;
     }
   }
-  }
 
   /**
    * Helper to verify if user is subscribed to the target Telegram Channel
