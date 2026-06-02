@@ -199,7 +199,10 @@ class TelegramManager {
 
       if (data === 'subscribe_info') {
         // Find public payment URL if deployed, otherwise fallback to local server
-        const webPortalUrl = process.env.PAYMENT_PORTAL_URL || 'https://souravsanyal1.github.io/Signal-Telegram-Bot/payment/index.html';
+        let webPortalUrl = process.env.PAYMENT_PORTAL_URL || 'https://souravsanyal1.github.io/Signal-Telegram-Bot/payment/index.html';
+        if (webPortalUrl && !webPortalUrl.startsWith('http')) {
+          webPortalUrl = 'https://' + webPortalUrl;
+        }
         return this.bot.sendMessage(chatId, 
           `⭐️ <b>VIP PREMIUM PAYMENT INFO</b> ⭐️\n\n` +
           `Open our Web Portal to pay via Bkash, Nagad or Dollars:\n` +
