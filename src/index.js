@@ -3,6 +3,7 @@ const websocket = require('./websocket');
 const strategy = require('./strategy');
 const telegram = require('./telegram');
 const server = require('./server');
+const autotrade = require('./autotrade');
 
 // Track latest volume from depth/change events to augment price analysis
 const latestVolumes = {};
@@ -34,6 +35,11 @@ async function processSignalQueue() {
     // Send the signal now
     console.log(`📤 [Queue] Dispatching signal: ${item.signal.asset} ${item.signal.type}`);
     sent = await telegram.sendSignal(item.signal);
+    
+    // If successfully sent and auto trading is enabled, place trade
+    if (sent && process.env.AUTO_TRADE_ENABLED === 'true') {
+      autotrade.placeTrade(item.signal);
+    }
   } catch (error) {
     console.error(`❌ [Queue] Error sending signal:`, error.message);
   }
@@ -64,6 +70,11 @@ function main() {
   
   // Start the HTTP API/Web portal server
   server.startServer();
+
+  // Initialize AutoTrader if enabled
+  if (process.env.AUTO_TRADE_ENABLED === 'true') {
+    autotrade.init();
+  }
 
   console.log(`📡 Monitored Assets: ${config.strategy.monitoredAssets.join(', ')}`);
   console.log(`⚙️  Sensitivity: ${config.strategy.sensitivity.toUpperCase()}`);
