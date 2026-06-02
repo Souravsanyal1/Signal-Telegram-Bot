@@ -3,7 +3,7 @@ const websocket = require('./websocket');
 const strategy = require('./strategy');
 const telegram = require('./telegram');
 const server = require('./server');
-const autotrade = require('./autotrade');
+let autotrade = null;
 
 // Track latest volume from depth/change events to augment price analysis
 const latestVolumes = {};
@@ -49,7 +49,7 @@ function startBufferTimer() {
       sent = await telegram.sendSignal(bestSignal);
       
       // If successfully sent and auto trading is enabled, place trade
-      if (sent && process.env.AUTO_TRADE_ENABLED === 'true') {
+      if (sent && autotrade && process.env.AUTO_TRADE_ENABLED === 'true') {
         autotrade.placeTrade(bestSignal);
       }
     } catch (error) {
@@ -68,6 +68,8 @@ function main() {
 
   // Initialize AutoTrader if enabled
   if (process.env.AUTO_TRADE_ENABLED === 'true') {
+    const AutoTrader = require('./autotrade');
+    autotrade = new AutoTrader();
     autotrade.init();
   }
 

@@ -339,4 +339,4 @@ class AutoTrader {
   }
 }
 
-module.exports = new AutoTrader();
+module.exports = AutoTrader;
