@@ -35,7 +35,9 @@ class AutoTrader {
           '--disable-setuid-sandbox',
           '--disable-infobars',
           '--start-maximized',
+          '--disable-blink-features=AutomationControlled', // Hides automation flag
         ],
+        ignoreDefaultArgs: ['--enable-automation'], // Removes Chrome's test banner
       });
 
       this.page = await this.browser.newPage();
@@ -74,6 +76,9 @@ class AutoTrader {
 
       // Wait a bit for page layout and spinner to settle
       await this.sleep(4000);
+
+      // Check for Cloudflare Turnstile verification challenge and attempt bypass
+      await this.handleCloudflareTurnstile();
 
       // Check if already redirected to trade page (e.g. if session restore worked instantly)
       let currentUrl = this.page.url();
@@ -246,6 +251,43 @@ class AutoTrader {
       } catch (scrErr) {
         console.error('❌ [AutoTrade] Could not save error screenshot:', scrErr.message);
       }
+    }
+  }
+
+  async handleCloudflareTurnstile() {
+    try {
+      console.log('🛡️ [AutoTrade] Checking for Cloudflare Turnstile challenge...');
+      
+      // Wait for iframes to load
+      await this.sleep(4000);
+      
+      const frames = this.page.frames();
+      const turnstileFrame = frames.find(f => f.url().includes('challenges.cloudflare.com'));
+      
+      if (turnstileFrame) {
+        console.log('🤖 [AutoTrade] Cloudflare Turnstile iframe detected. Attempting to click checkbox...');
+        
+        // Target multiple potential Turnstile checkbox selectors
+        const checkboxSelector = '#challenge-stage input[type="checkbox"], #challenge-stage .cb-i, #challenge-stage .ctp-checkbox-label, .mark';
+        
+        try {
+          await turnstileFrame.waitForSelector(checkboxSelector, { visible: true, timeout: 6000 });
+          const checkbox = await turnstileFrame.$(checkboxSelector);
+          if (checkbox) {
+            // Click the Turnstile checkbox inside the iframe
+            await checkbox.click();
+            console.log('✅ [AutoTrade] Successfully clicked Cloudflare Turnstile checkbox!');
+            // Wait for verification processing and page reload/redirection
+            await this.sleep(7000);
+          }
+        } catch (e) {
+          console.warn('⚠️ [AutoTrade] Could not auto-click Turnstile checkbox:', e.message);
+        }
+      } else {
+        console.log('ℹ️ [AutoTrade] No Cloudflare Turnstile challenge page detected.');
+      }
+    } catch (err) {
+      console.warn('⚠️ [AutoTrade] Error during Cloudflare Turnstile handling:', err.message);
     }
   }
 

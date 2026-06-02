@@ -64,3 +64,9 @@ Ensure `SIMULATE_MARKET=false` in your `.env` or run:
 npm run start
 ```
 This subscribes to the live Quotex events (`quotes/stream` and `depth/change`) and acts on live market changes immediately.
+
+---
+
+## 📱 Mobile Control & Cloudflare Bypass
+For detailed instructions on how to run or control the bot from your phone (iOS / Android) and handle Cloudflare bypasses, please refer to the [MOBILE_GUIDE.md](MOBILE_GUIDE.md) file.
+
