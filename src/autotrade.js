@@ -47,10 +47,38 @@ class AutoTrader {
       });
 
       console.log('🌐 [AutoTrade] Navigating to Quotex...');
-      await this.page.goto('https://qxbroker.com/en/trade', { waitUntil: 'networkidle2', timeout: 60000 });
+      
+      const email = process.env.QUOTEX_EMAIL;
+      const password = process.env.QUOTEX_PASSWORD;
+
+      if (email && password) {
+        console.log('🔐 [AutoTrade] Credentials found in .env. Attempting auto-login...');
+        await this.page.goto('https://qxbroker.com/en/sign-in', { waitUntil: 'networkidle2', timeout: 60000 });
+        
+        try {
+          // Wait for email and password fields
+          await this.page.waitForSelector('input[type="email"]', { timeout: 10000 });
+          await this.page.type('input[type="email"]', email, { delay: 50 });
+          
+          await this.page.waitForSelector('input[type="password"]', { timeout: 10000 });
+          await this.page.type('input[type="password"]', password, { delay: 50 });
+          
+          // Try to click the submit button
+          const submitBtn = await this.page.$('button[type="submit"]');
+          if (submitBtn) {
+            await submitBtn.click();
+            console.log('✅ [AutoTrade] Login form submitted. Waiting for navigation...');
+            await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+          }
+        } catch (err) {
+          console.warn('⚠️ [AutoTrade] Auto-login failed or captcha required. Please complete login manually.', err.message);
+        }
+      } else {
+        await this.page.goto('https://qxbroker.com/en/trade', { waitUntil: 'networkidle2', timeout: 60000 });
+      }
       
       this.isReady = true;
-      console.log('✅ [AutoTrade] Browser ready. Please log in manually if you are not already logged in.');
+      console.log('✅ [AutoTrade] Browser ready. If not logged in, please log in manually.');
       console.log('⚠️ [AutoTrade] The bot will automatically use the active window to place trades when signals arrive.');
       
     } catch (error) {
