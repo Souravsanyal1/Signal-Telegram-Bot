@@ -211,10 +211,14 @@ class TelegramManager {
     const escapeHTML = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedReason = escapeHTML(reason);
 
+    // Determine Market Type (Real vs OTC)
+    const isOTC = asset.toUpperCase().includes('OTC') || new Date().getDay() === 0 || new Date().getDay() === 6;
+    const marketType = isOTC ? 'OTC Market' : 'Real Market';
+
     if (type === 'BUY') {
       message = `🟩🟩🟩 <b>REAL-TIME VIP SIGNAL</b> 🟩🟩🟩\n\n` +
                 `💥 <b>SIGNAL:</b> <code>BUY / LONG</code>\n` +
-                `💎 <b>Asset:</b> <code>${asset}</code>\n` +
+                `💎 <b>Asset:</b> <code>${asset} (${marketType})</code>\n` +
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
                 `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
@@ -225,7 +229,7 @@ class TelegramManager {
     } else {
       message = `🟥🟥🟥 <b>REAL-TIME VIP SIGNAL</b> 🟥🟥🟥\n\n` +
                 `💥 <b>SIGNAL:</b> <code>SELL / SHORT</code>\n` +
-                `💎 <b>Asset:</b> <code>${asset}</code>\n` +
+                `💎 <b>Asset:</b> <code>${asset} (${marketType})</code>\n` +
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
                 `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
