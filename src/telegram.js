@@ -12,7 +12,7 @@ class TelegramManager {
       console.warn('⚠️ TELEGRAM_CHAT_ID is not defined in the environment variables.');
     }
 
-    this.bot = token ? new TelegramBot(token, { polling: true }) : null;
+    this.bot = token ? new TelegramBot(token, { polling: !process.env.DISABLE_POLLING }) : null;
     this.chatId = chatId;
 
     // Admin & paid users list
@@ -207,34 +207,38 @@ class TelegramManager {
     const formattedPrice = price.toFixed(asset.includes('BTC') ? 2 : 5);
     const timeString = new Date().toLocaleTimeString('en-US', { hour12: false });
 
+    // HTML escape helper to prevent tag parsing errors in reason text
+    const escapeHTML = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escapedReason = escapeHTML(reason);
+
     if (type === 'BUY') {
-      message = `🟩🟩🟩 **REAL-TIME VIP SIGNAL** 🟩🟩🟩\n\n` +
-                `💥 **SIGNAL:** \`BUY / LONG\`\n` +
-                `💎 **Asset:** \`${asset}\`\n` +
-                `💵 **Current Price:** \`${formattedPrice}\`\n` +
-                `🎯 **Confidence:** \`${confidence}% (High)\`\n` +
-                `⏰ **time:** \`${timeString} (1 Minute Candle)\`\n` +
-                `⚡ **Action:** \`Buy immediately or check breakout confirmation\`\n\n` +
-                `📊 **Technical Analysis:**\n` +
-                `👉 _${reason}_\n\n` +
-                `⏳ **Powered by:** ${this.botName}`;
+      message = `🟩🟩🟩 <b>REAL-TIME VIP SIGNAL</b> 🟩🟩🟩\n\n` +
+                `💥 <b>SIGNAL:</b> <code>BUY / LONG</code>\n` +
+                `💎 <b>Asset:</b> <code>${asset}</code>\n` +
+                `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
+                `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
+                `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
+                `⚡ <b>Action:</b> <code>Buy immediately or check breakout confirmation</code>\n\n` +
+                `📊 <b>Technical Analysis:</b>\n` +
+                `👉 <i>${escapedReason}</i>\n\n` +
+                `⏳ <b>Powered by:</b> ${this.botName}`;
     } else {
-      message = `🟥🟥🟥 **REAL-TIME VIP SIGNAL** 🟥🟥🟥\n\n` +
-                `💥 **SIGNAL:** \`SELL / SHORT\`\n` +
-                `💎 **Asset:** \`${asset}\`\n` +
-                `💵 **Current Price:** \`${formattedPrice}\`\n` +
-                `🎯 **Confidence:** \`${confidence}% (High)\`\n` +
-                `⏰ **time:** \`${timeString} (1 Minute Candle)\`\n` +
-                `⚡ **Action:** \`Sell immediately or check reversal confirmation\`\n\n` +
-                `📊 **Technical Analysis:**\n` +
-                `👉 _${reason}_\n\n` +
-                `⏳ **Powered by:** ${this.botName}`;
+      message = `🟥🟥🟥 <b>REAL-TIME VIP SIGNAL</b> 🟥🟥🟥\n\n` +
+                `💥 <b>SIGNAL:</b> <code>SELL / SHORT</code>\n` +
+                `💎 <b>Asset:</b> <code>${asset}</code>\n` +
+                `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
+                `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
+                `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
+                `⚡ <b>Action:</b> <code>Sell immediately or check reversal confirmation</code>\n\n` +
+                `📊 <b>Technical Analysis:</b>\n` +
+                `👉 <i>${escapedReason}</i>\n\n` +
+                `⏳ <b>Powered by:</b> ${this.botName}`;
     }
 
     if (!this.bot || !this.chatId) return true;
 
     try {
-      await this.bot.sendMessage(this.chatId, message, { parse_mode: 'Markdown' });
+      await this.bot.sendMessage(this.chatId, message, { parse_mode: 'HTML' });
       return true;
     } catch (error) {
       console.error(`❌ [Telegram] Failed to send message:`, error.message);
