@@ -13,7 +13,9 @@ class TelegramManager {
       console.warn('⚠️ TELEGRAM_CHAT_ID is not defined in the environment variables.');
     }
 
-    this.bot = token ? new TelegramBot(token, { polling: !process.env.DISABLE_POLLING }) : null;
+    // Disable polling in production - bot primarily sends signals, doesn't need to receive commands
+    const pollingEnabled = process.env.NODE_ENV !== 'production' && process.env.DISABLE_POLLING !== 'true';
+    this.bot = token ? new TelegramBot(token, { polling: pollingEnabled }) : null;
     this.chatId = chatId;
 
     // Admin & paid users database
