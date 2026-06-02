@@ -1,0 +1,19 @@
+{
+  "name": "trading-signal-bot",
+  "version": "1.0.0",
+  "description": "Production-ready Telegram Real-Time Trading Signal Bot using Node.js",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "simulate": "SIMULATE_MARKET=true node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0",
+    "socket.io-client": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
