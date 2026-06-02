@@ -695,7 +695,29 @@ STATUS: Pending Verification</div>
     </div>
   </div>
 
+  <!-- Firebase Initialization -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDzItcM2lRHsUN-n8zCTJZ5QcOzoQG1Kp4",
+      authDomain: "sorkar-agro-48c87.firebaseapp.com",
+      databaseURL: "https://sorkar-agro-default-rtdb.firebaseio.com",
+      projectId: "sorkar-agro",
+      storageBucket: "sorkar-agro.firebasestorage.app",
+      messagingSenderId: "100923170468",
+      appId: "1:100923170468:web:dc3be2b21e5071af895031"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+  </script>
+
   <script>
+    // IMPORTANT: When deployed on Firebase, change this to your backend server URL (e.g. 'https://my-bot-server.com/api/submit-payment')
+    // If testing locally alongside the bot, use '/api/submit-payment'
+    const BACKEND_API_URL = '/api/submit-payment';
+
     let activeCurrency = 'USD';
     let activeGateway = 'bkash';
     let selectedPlan = '';
@@ -816,8 +838,8 @@ STATUS: Pending Verification</div>
       };
 
       try {
-        // Send request to API relative to host (served from our Node Express server)
-        const response = await fetch('/api/submit-payment', {
+        // Send request to API relative to host (served from our Node Express server) or absolute URL if on Firebase
+        const response = await fetch(BACKEND_API_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
