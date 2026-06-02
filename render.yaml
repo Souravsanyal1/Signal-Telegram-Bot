@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: trading-signal-bot
+    env: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: WS_URL
+        value: wss://ws2.market-qx.trade/socket.io/?EIO=3&transport=websocket
+      - key: SIGNAL_COOLDOWN_MS
+        value: "300000"
+      - key: DUPLICATE_PROTECTION_MS
+        value: "600000"
+      - key: SENSITIVITY
+        value: medium
+      - key: SIMULATE_MARKET
+        value: "false"
+      - key: PORT
+        value: "3000"

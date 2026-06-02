@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.git
+.gitignore
+.vscode
+.DS_Store
+chrome_session
+payment/node_modules
+*.md
+.env.example
