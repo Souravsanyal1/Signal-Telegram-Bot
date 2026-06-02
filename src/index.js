@@ -40,11 +40,12 @@ async function processSignalQueue() {
 
   // If more signals remain, calculate delay
   if (signalQueue.length > 0) {
-    // If the signal was suppressed (sent === false) or errored, don't wait 1-2 mins, process next immediately (small 1s delay)
-    const delayMs = sent ? (60000 + Math.floor(Math.random() * 60000)) : 1000;
+    // Small stagger (2-4 seconds) between simultaneous signals to prevent Telegram flooding,
+    // but keep messages flowing continuously.
+    const delayMs = sent ? (2000 + Math.floor(Math.random() * 2000)) : 500;
     
     if (sent) {
-      console.log(`⏳ [Queue] Next signal in ${(delayMs / 1000).toFixed(0)}s (${signalQueue.length} remaining)`);
+      console.log(`⏳ [Queue] Next signal in ${(delayMs / 1000).toFixed(1)}s (${signalQueue.length} remaining)`);
     } else {
       console.log(`⏭️ [Queue] Signal suppressed/failed. Skipping delay. (${signalQueue.length} remaining)`);
     }
