@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const config = require('./config');
+const db = require('./db');
 
 class TelegramManager {
   constructor() {
@@ -15,10 +16,10 @@ class TelegramManager {
     this.bot = token ? new TelegramBot(token, { polling: !process.env.DISABLE_POLLING }) : null;
     this.chatId = chatId;
 
-    // Admin & paid users database (in-memory)
+    // Admin & paid users database
     this.adminId = '6314449877';
-    this.paidUsers = new Set(); 
-
+    this.paidUsers = db.loadPaidUsers(); 
+    this.botName = 'Real Bot';
     // Uptime stats
     this.startTime = Date.now();
     this.totalSignalsSent = 0;
@@ -130,6 +131,7 @@ class TelegramManager {
 
       const targetId = match[1].trim();
       this.paidUsers.add(targetId);
+      db.savePaidUsers(this.paidUsers);
       this.bot.sendMessage(chatId, `✅ User <code>${targetId}</code> successfully added to Paid list.`, { parse_mode: 'HTML' });
     });
 
@@ -140,6 +142,7 @@ class TelegramManager {
 
       const targetId = match[1].trim();
       if (this.paidUsers.delete(targetId)) {
+        db.savePaidUsers(this.paidUsers);
         this.bot.sendMessage(chatId, `✅ User <code>${targetId}</code> removed from Paid list.`, { parse_mode: 'HTML' });
       } else {
         this.bot.sendMessage(chatId, `⚠️ User <code>${targetId}</code> not found in Paid list.`, { parse_mode: 'HTML' });
@@ -195,13 +198,73 @@ class TelegramManager {
       }
 
       if (data === 'subscribe_info') {
+        // Find public payment URL if deployed, otherwise fallback to local server
+        const webPortalUrl = process.env.PAYMENT_PORTAL_URL || 'https://souravsanyal1.github.io/Signal-Telegram-Bot/payment/index.html';
         return this.bot.sendMessage(chatId, 
           `⭐️ <b>VIP PREMIUM PAYMENT INFO</b> ⭐️\n\n` +
           `Open our Web Portal to pay via Bkash, Nagad or Dollars:\n` +
-          `👉 <a href="https://souravsanyal1.github.io/Signal-Telegram-Bot/payment/index.html">Click Here to Open Payment Web Portal</a>\n\n` +
+          `👉 <a href="${webPortalUrl}">Click Here to Open Payment Web Portal</a>\n\n` +
           `Your Telegram ID: <code>${userId}</code> (Copy this to the payment form)`,
           { parse_mode: 'HTML', disable_web_page_preview: true }
         );
+      }
+
+      // Handle custom Admin Approval and Rejection Callback Actions
+      if (data.startsWith('approve_pay_')) {
+        const parts = data.split('_');
+        const targetUserId = parts[2];
+        const plan = parts.slice(3).join(' ').replace(/_/g, ' ');
+
+        this.paidUsers.add(targetUserId);
+        db.savePaidUsers(this.paidUsers);
+
+        // Edit original message to remove buttons and show confirmation
+        try {
+          await this.bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: message.message_id });
+          await this.bot.sendMessage(chatId, `✅ <b>Approved User:</b> <code>${targetUserId}</code> for <b>${plan}</b>.\nSubscription has been successfully activated.`, { parse_mode: 'HTML' });
+        } catch (e) {
+          console.error(e.message);
+        }
+
+        // Notify user directly
+        try {
+          await this.bot.sendMessage(targetUserId, 
+            `🎉 <b>VIP SUBSCRIPTION APPROVED</b> 🎉\n\n` +
+            `Dear User, your payment has been successfully verified by the Admin!\n` +
+            `Your VIP premium features (<b>${plan}</b>) are now active.\n\n` +
+            `💬 Start receiving premium trading alerts instantly!\n` +
+            `Type /start or /panel to access the controls.`, 
+            { parse_mode: 'HTML' }
+          );
+        } catch (err) {
+          console.error(`Could not notify user ${targetUserId}:`, err.message);
+        }
+        return;
+      }
+
+      if (data.startsWith('reject_pay_')) {
+        const targetUserId = data.split('_')[2];
+
+        // Edit original message to remove buttons and show rejection status
+        try {
+          await this.bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: message.message_id });
+          await this.bot.sendMessage(chatId, `❌ <b>Rejected User:</b> <code>${targetUserId}</code> transaction details.`, { parse_mode: 'HTML' });
+        } catch (e) {
+          console.error(e.message);
+        }
+
+        // Notify user directly
+        try {
+          await this.bot.sendMessage(targetUserId, 
+            `⚠️ <b>VIP PAYMENT REJECTED</b> ⚠️\n\n` +
+            `Dear User, your transaction ID or receipt details could not be verified by the Admin.\n\n` +
+            `💬 Please verify your transaction details and submit again, or contact Master Admin @Souravsanyal1 for support.`, 
+            { parse_mode: 'HTML' }
+          );
+        } catch (err) {
+          console.error(`Could not notify user ${targetUserId}:`, err.message);
+        }
+        return;
       }
 
       if (!isAdmin && !isPaid) return;
@@ -284,6 +347,12 @@ class TelegramManager {
     const formattedPrice = price.toFixed(asset.includes('BTC') ? 2 : 5);
     const timeString = new Date().toLocaleTimeString('en-US', { hour12: false });
 
+    // Predictive Entry Time - tells user WHEN to enter (60s from now)
+    const entryDelayMs = parseInt(process.env.ENTRY_DELAY_MS) || 60000;
+    const entryTime = new Date(now + entryDelayMs);
+    const entryTimeStr = entryTime.toLocaleTimeString('en-US', { hour12: false });
+    const entryMinutes = Math.round(entryDelayMs / 60000);
+
     // Escape HTML strings
     const escapeHTML = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedReason = escapeHTML(reason);
@@ -299,11 +368,12 @@ class TelegramManager {
                 `💎 <b>Asset:</b> <code>${asset} (${marketType})</code>\n` +
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
-                `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
-                `⚡ <b>Action:</b> <code>Buy immediately or check breakout confirmation</code>\n` +
+                `⏰ <b>Signal Time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
+                `🕐 <b>Entry Time:</b> <code>${entryTimeStr} (Enter after ${entryMinutes} min)</code>\n` +
+                `⚡ <b>Action:</b> <code>Wait for entry time, then BUY on confirmation</code>\n` +
                 `🔗 <b>Trade Platform:</b> <a href="https://market-qx.trade/en/trade">Click to Trade on Quotex</a>\n\n` +
-                `📊 <b>Technical Analysis:</b>\n` +
-                `👉 <i>${escapedReason}</i>\n\n` +
+                `📊 <b>Technical Analysis (Predictive):</b>\n` +
+                `🔮 <i>Pre-analyzed before signal dispatch. ${escapedReason}</i>\n\n` +
                 `⏳ <b>Powered by:</b> ${this.botName}`;
     } else {
       message = `🟥🟥🟥 <b>REAL-TIME VIP SIGNAL</b> 🟥🟥🟥\n\n` +
@@ -311,11 +381,12 @@ class TelegramManager {
                 `💎 <b>Asset:</b> <code>${asset} (${marketType})</code>\n` +
                 `💵 <b>Current Price:</b> <code>${formattedPrice}</code>\n` +
                 `🎯 <b>Confidence:</b> <code>${confidence}% (High)</code>\n` +
-                `⏰ <b>time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
-                `⚡ <b>Action:</b> <code>Sell immediately or check reversal confirmation</code>\n` +
+                `⏰ <b>Signal Time:</b> <code>${timeString} (1 Minute Candle)</code>\n` +
+                `🕐 <b>Entry Time:</b> <code>${entryTimeStr} (Enter after ${entryMinutes} min)</code>\n` +
+                `⚡ <b>Action:</b> <code>Wait for entry time, then SELL on confirmation</code>\n` +
                 `🔗 <b>Trade Platform:</b> <a href="https://market-qx.trade/en/trade">Click to Trade on Quotex</a>\n\n` +
-                `📊 <b>Technical Analysis:</b>\n` +
-                `👉 <i>${escapedReason}</i>\n\n` +
+                `📊 <b>Technical Analysis (Predictive):</b>\n` +
+                `🔮 <i>Pre-analyzed before signal dispatch. ${escapedReason}</i>\n\n` +
                 `⏳ <b>Powered by:</b> ${this.botName}`;
     }
 
