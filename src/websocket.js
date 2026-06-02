@@ -7,48 +7,6 @@ class WebSocketManager {
     this.callbacks = {};
     this.reconnectAttempts = 0;
     this.simulationInterval = null;
-
-    // Signal stagger queue - prevents all signals firing simultaneously
-    this.signalQueue = [];
-    this.isProcessingQueue = false;
-    this.SIGNAL_STAGGER_MS = 90000; // 1.5 minutes between each signal dispatch (90 seconds)
-  }
-
-  on(event, callback) {
-    this.callbacks[event] = callback;
-  }
-
-  /**
-   * Stagger Queue System: Buffer incoming signals and release them 1-2 minutes apart
-   */
-  queueSignal(data) {
-    this.signalQueue.push(data);
-    if (!this.isProcessingQueue) {
-      this.processQueue();
-    }
-  }
-
-  async processQueue() {
-    if (this.signalQueue.length === 0) {
-      this.isProcessingQueue = false;
-      return;
-    }
-
-    this.isProcessingQueue = true;
-    const data = this.signalQueue.shift();
-
-    // Fire the quotes callback with this item
-    if (this.callbacks['quotes']) {
-      this.callbacks['quotes'](data);
-    }
-
-    // Random 60-120 second delay before next signal
-    const delayMs = 60000 + Math.floor(Math.random() * 60000);
-    console.log(`[Queue] Next signal will fire in ${(delayMs / 1000).toFixed(0)}s`);
-    
-    setTimeout(() => {
-      this.processQueue();
-    }, delayMs);
   }
 
   connect() {
