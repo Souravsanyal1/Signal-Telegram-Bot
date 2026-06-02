@@ -25,8 +25,9 @@ class AutoTrader {
     }
 
     try {
+      const isHeadless = process.env.AUTO_TRADE_HEADLESS === 'true';
       this.browser = await puppeteer.launch({
-        headless: false,
+        headless: isHeadless ? 'new' : false,
         userDataDir: this.userDataDir,
         defaultViewport: null,
         args: [
@@ -41,6 +42,8 @@ class AutoTrader {
       await this.page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       );
+      // Set a standard viewport to ensure consistent layout and positioning
+      await this.page.setViewport({ width: 1920, height: 1080 });
 
       const email = process.env.QUOTEX_EMAIL;
       const password = process.env.QUOTEX_PASSWORD;
@@ -69,42 +72,65 @@ class AutoTrader {
         timeout: 60000
       });
 
-      // Wait a bit for page JS to load
-      await this.sleep(3000);
+      // Wait a bit for page layout and spinner to settle
+      await this.sleep(4000);
 
-      // Try to find email field using multiple possible selectors
+      // Check if already redirected to trade page (e.g. if session restore worked instantly)
+      let currentUrl = this.page.url();
+      if (currentUrl.includes('/trade') || currentUrl.includes('/en/trade')) {
+        this.isLoggedIn = true;
+        console.log('✅ [AutoTrade] Auto-login bypassed (already logged in). Ready to place trades.');
+        return;
+      }
+
+      // Try to find the email input field and wait for it to be visible
       const emailSelectors = [
         'input[name="email"]',
         'input[type="email"]',
         'input[placeholder*="mail"]',
         'input[placeholder*="Email"]',
-        'input[id*="email"]',
+        'input[class*="input-value"]',
       ];
 
-      let emailField = null;
+      let emailSelector = null;
       for (const sel of emailSelectors) {
-        emailField = await this.page.$(sel);
-        if (emailField) {
-          console.log(`✅ [AutoTrade] Found email field with selector: ${sel}`);
-          break;
-        }
+        try {
+          const el = await this.page.waitForSelector(sel, { visible: true, timeout: 3000 });
+          if (el) {
+            emailSelector = sel;
+            console.log(`✅ [AutoTrade] Found email field with selector: ${sel}`);
+            break;
+          }
+        } catch (e) { /* ignore and try next */ }
       }
 
-      if (!emailField) {
-        console.warn('⚠️ [AutoTrade] Could not find email input. Saving screenshot...');
+      if (!emailSelector) {
+        console.warn('⚠️ [AutoTrade] Could not find visible email input. Saving screenshot...');
         await this.page.screenshot({ path: path.join(__dirname, '..', 'login_debug.png') });
         console.warn('📸 [AutoTrade] Screenshot saved as login_debug.png - check what the page looks like.');
         return;
       }
 
-      // Clear and type email
-      await emailField.click({ clickCount: 3 });
-      await emailField.type(email, { delay: 80 });
-      console.log(`📧 [AutoTrade] Entered email: ${email}`);
+      // Fill email via JavaScript evaluation to bypass physical click blockages
+      console.log('📧 [AutoTrade] Entering email...');
+      const emailFilled = await this.page.evaluate((sel, val) => {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.value = val;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+        return false;
+      }, emailSelector, email);
+
+      if (!emailFilled) {
+        throw new Error('Could not set email field value');
+      }
 
       await this.sleep(1000);
 
-      // Try to find password field
+      // Try to find the password input field and wait for it to be visible
       const passwordSelectors = [
         'input[name="password"]',
         'input[type="password"]',
@@ -112,51 +138,81 @@ class AutoTrader {
         'input[id*="password"]',
       ];
 
-      let passwordField = null;
+      let passwordSelector = null;
       for (const sel of passwordSelectors) {
-        passwordField = await this.page.$(sel);
-        if (passwordField) {
-          console.log(`✅ [AutoTrade] Found password field with selector: ${sel}`);
-          break;
-        }
+        try {
+          const el = await this.page.waitForSelector(sel, { visible: true, timeout: 3000 });
+          if (el) {
+            passwordSelector = sel;
+            console.log(`✅ [AutoTrade] Found password field with selector: ${sel}`);
+            break;
+          }
+        } catch (e) { /* ignore and try next */ }
       }
 
-      if (!passwordField) {
-        console.warn('⚠️ [AutoTrade] Could not find password input field.');
+      if (!passwordSelector) {
+        console.warn('⚠️ [AutoTrade] Could not find visible password input field.');
         return;
       }
 
-      await passwordField.click({ clickCount: 3 });
-      await passwordField.type(password, { delay: 80 });
-      console.log('🔑 [AutoTrade] Entered password.');
+      // Fill password via JavaScript evaluation
+      console.log('🔑 [AutoTrade] Entering password...');
+      const passwordFilled = await this.page.evaluate((sel, val) => {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.value = val;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+        return false;
+      }, passwordSelector, password);
+
+      if (!passwordFilled) {
+        throw new Error('Could not set password field value');
+      }
 
       await this.sleep(1000);
 
-      // Try to find and click the submit/login button
+      // Find the login/submit button and click it
       const buttonSelectors = [
+        'button.modal-sign__block-button',
         'button[type="submit"]',
         'button.btn-login',
         'button[class*="login"]',
         'button[class*="submit"]',
-        'input[type="submit"]',
-        'button:not([type="button"])',
       ];
 
-      let loginBtn = null;
+      let buttonSelector = null;
       for (const sel of buttonSelectors) {
-        loginBtn = await this.page.$(sel);
-        if (loginBtn) {
-          console.log(`✅ [AutoTrade] Found login button with selector: ${sel}`);
-          break;
-        }
+        try {
+          const el = await this.page.waitForSelector(sel, { visible: true, timeout: 3000 });
+          if (el) {
+            buttonSelector = sel;
+            console.log(`✅ [AutoTrade] Found login button with selector: ${sel}`);
+            break;
+          }
+        } catch (e) { /* ignore and try next */ }
       }
 
-      if (loginBtn) {
-        await loginBtn.click();
-        console.log('🖱️ [AutoTrade] Clicked login button. Waiting for redirect...');
+      if (buttonSelector) {
+        console.log('🖱️ [AutoTrade] Clicking login button...');
+        const clicked = await this.page.evaluate((sel) => {
+          const btn = document.querySelector(sel);
+          if (btn) {
+            btn.click();
+            return true;
+          }
+          return false;
+        }, buttonSelector);
+        if (!clicked) {
+          // Physical fallback click
+          await this.page.click(buttonSelector);
+        }
       } else {
-        // Fallback: press Enter
-        await passwordField.press('Enter');
+        // Fallback: press Enter on password field
+        await this.page.focus(passwordSelector);
+        await this.page.keyboard.press('Enter');
         console.log('⌨️ [AutoTrade] Pressed Enter to submit login form.');
       }
 
@@ -164,10 +220,10 @@ class AutoTrader {
       try {
         await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 });
       } catch (e) {
-        // Navigation may not happen if captcha appears
+        // Navigation may not happen if captcha appears or redirect takes longer
       }
 
-      const currentUrl = this.page.url();
+      currentUrl = this.page.url();
       console.log(`🔗 [AutoTrade] Current URL after login: ${currentUrl}`);
 
       if (currentUrl.includes('/trade') || currentUrl.includes('/en/trade')) {
@@ -184,6 +240,12 @@ class AutoTrader {
 
     } catch (err) {
       console.error('❌ [AutoTrade] Login error:', err.message);
+      try {
+        await this.page.screenshot({ path: path.join(__dirname, '..', 'login_debug.png') });
+        console.warn('📸 [AutoTrade] Error screenshot saved as login_debug.png');
+      } catch (scrErr) {
+        console.error('❌ [AutoTrade] Could not save error screenshot:', scrErr.message);
+      }
     }
   }
 
@@ -231,9 +293,19 @@ class AutoTrader {
       try {
         const el = await this.page.$(sel);
         if (el) {
-          await el.click();
-          console.log(`✅ [AutoTrade] Clicked ${label} (selector: ${sel})`);
-          return true;
+          try {
+            await el.click();
+            console.log(`✅ [AutoTrade] Clicked ${label} physically (selector: ${sel})`);
+            return true;
+          } catch (clickErr) {
+            console.warn(`⚠️ [AutoTrade] Physical click failed on ${label}, trying JS click fallback...`);
+            await this.page.evaluate((s) => {
+              const element = document.querySelector(s);
+              if (element) element.click();
+            }, sel);
+            console.log(`✅ [AutoTrade] Clicked ${label} via JS (selector: ${sel})`);
+            return true;
+          }
         }
       } catch (e) { /* continue */ }
     }
