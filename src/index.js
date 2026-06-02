@@ -29,14 +29,26 @@ async function processSignalQueue() {
   isProcessingQueue = true;
   const item = signalQueue.shift();
 
-  // Send the signal now
-  console.log(`📤 [Queue] Dispatching signal: ${item.signal.asset} ${item.signal.type}`);
-  await telegram.sendSignal(item.signal);
+  let sent = false;
+  try {
+    // Send the signal now
+    console.log(`📤 [Queue] Dispatching signal: ${item.signal.asset} ${item.signal.type}`);
+    sent = await telegram.sendSignal(item.signal);
+  } catch (error) {
+    console.error(`❌ [Queue] Error sending signal:`, error.message);
+  }
 
-  // If more signals remain, wait 60-120 seconds before next
+  // If more signals remain, calculate delay
   if (signalQueue.length > 0) {
-    const delayMs = 60000 + Math.floor(Math.random() * 60000); // 60s - 120s
-    console.log(`⏳ [Queue] Next signal in ${(delayMs / 1000).toFixed(0)}s (${signalQueue.length} remaining)`);
+    // If the signal was suppressed (sent === false) or errored, don't wait 1-2 mins, process next immediately (small 1s delay)
+    const delayMs = sent ? (60000 + Math.floor(Math.random() * 60000)) : 1000;
+    
+    if (sent) {
+      console.log(`⏳ [Queue] Next signal in ${(delayMs / 1000).toFixed(0)}s (${signalQueue.length} remaining)`);
+    } else {
+      console.log(`⏭️ [Queue] Signal suppressed/failed. Skipping delay. (${signalQueue.length} remaining)`);
+    }
+
     setTimeout(() => {
       processSignalQueue();
     }, delayMs);
