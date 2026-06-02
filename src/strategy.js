@@ -3,20 +3,18 @@ const config = require('./config');
 class TradingStrategy {
   constructor() {
     this.history = {};
-    this.maxHistorySize = 30; // Shorter window for faster execution speed
+    this.maxHistorySize = 50; // Larger history size to support MACD and ATR calculations
 
     const sens = config.strategy.sensitivity.toLowerCase();
     this.thresholds = {
-      // Extremely low thresholds for high frequency velocity breakout
-      momentumCoeff: sens === 'high' ? 0.00005 : sens === 'low' ? 0.0002 : 0.0001, 
-      rsiOverbought: 65,
-      rsiOversold: 35,
-      volumeMultiplier: sens === 'high' ? 1.1 : sens === 'low' ? 1.8 : 1.3
+      momentumCoeff: sens === 'high' ? 0.00005 : sens === 'low' ? 0.0002 : 0.0001,
+      rsiOverbought: 70,
+      rsiOversold: 30
     };
   }
 
   /**
-   * Add a price tick and analyze it immediately (optimized for extreme speed)
+   * Process price updates statefully using a Multi-Indicator Fusion Score
    */
   processPriceUpdate(asset, price, volume = 0) {
     if (!this.history[asset]) {
@@ -30,8 +28,8 @@ class TradingStrategy {
       ticks.shift();
     }
 
-    // Need only 5 ticks for technical calculation to trigger instant signals
-    if (ticks.length < 5) {
+    // Need at least 26 periods for complete MACD/EMA indicators
+    if (ticks.length < 26) {
       return null;
     }
 
@@ -40,100 +38,143 @@ class TradingStrategy {
 
   analyze(asset, ticks) {
     const currentTick = ticks[ticks.length - 1];
-    const prevTick = ticks[ticks.length - 2];
     const prices = ticks.map(t => t.price);
-    const volumes = ticks.map(t => t.volume).filter(v => v > 0);
-
     const currentPrice = currentTick.price;
 
-    // Fast moving calculations for rapid signal emission
-    const smaFast = this.computeSMA(prices, 2);
-    const smaSlow = this.computeSMA(prices, 5);
+    // --- 1. Compute EMA 12 and 26 for MACD ---
+    const ema12 = this.computeEMA(prices, 12);
+    const ema26 = this.computeEMA(prices, 26);
+    const macdLine = ema12 - ema26;
+    
+    // Store MACD history to compute Signal Line (9-period EMA of MACD)
+    if (!this.macdHistory) this.macdHistory = {};
+    if (!this.macdHistory[asset]) this.macdHistory[asset] = [];
+    this.macdHistory[asset].push(macdLine);
+    if (this.macdHistory[asset].length > 30) this.macdHistory[asset].shift();
 
-    const rsi = this.computeRSI(prices, 4); // Fast RSI
+    const signalLine = this.computeEMA(this.macdHistory[asset], 9);
+    const macdHistogram = macdLine - signalLine;
 
-    const priceChangePct = (currentPrice - prevTick.price) / prevTick.price;
-    const velocity = (currentPrice - prices[prices.length - 3]) / prices[prices.length - 3]; // 3 ticks velocity
+    // --- 2. Compute Bollinger Bands ---
+    const sma20 = this.computeSMA(prices, 20);
+    const stdDev20 = this.computeStdDev(prices, 20, sma20);
+    const upperBand = sma20 + 2.0 * stdDev20;
+    const lowerBand = sma20 - 2.0 * stdDev20;
 
-    // Tightened Bollinger Bands for immediate breakouts
-    const mean = this.computeSMA(prices, 5);
-    const stdDev = this.computeStdDev(prices, 5, mean);
-    const upperBand = mean + 1.2 * stdDev; // 1.2 standard deviation instead of 2.0 (triggers faster)
-    const lowerBand = mean - 1.2 * stdDev;
+    // --- 3. Compute RSI (14) ---
+    const rsi = this.computeRSI(prices, 14);
 
-    let isVolumeSpike = false;
-    if (currentTick.volume > 0 && volumes.length > 2) {
-      const avgVolume = volumes.slice(-5, -1).reduce((s, v) => s + v, 0) / (volumes.slice(-5, -1).length || 1);
-      if (currentTick.volume > avgVolume * this.thresholds.volumeMultiplier) {
-        isVolumeSpike = true;
+    // --- 4. Average True Range (ATR) for Premium TP/SL levels ---
+    const atr = this.computeATR(ticks, 14);
+
+    // --- 5. Stochastic Oscillator %K & %D ---
+    const stoch = this.computeStochastic(prices, 14, 3);
+
+    // --- MULTI-INDICATOR FUSION SCORE ---
+    let bullishScore = 0;
+    let bearishScore = 0;
+    let reasons = [];
+
+    // Indicator A: MACD Crossover
+    if (macdHistogram > 0) {
+      bullishScore += 25;
+      if (this.macdHistory[asset][this.macdHistory[asset].length - 2] - signalLine < 0) {
+        bullishScore += 15; // Golden Crossover bonus
+        reasons.push("🚀 MACD Golden Crossover detected.");
+      }
+    } else {
+      bearishScore += 25;
+      if (this.macdHistory[asset][this.macdHistory[asset].length - 2] - signalLine > 0) {
+        bearishScore += 15; // Death Crossover bonus
+        reasons.push("🔻 MACD Death Crossover detected.");
       }
     }
 
-    // A. Fast Bullish Breakout
-    if (currentPrice > upperBand && velocity > this.thresholds.momentumCoeff) {
-      const confidence = Math.min(98, Math.round(80 + (velocity / this.thresholds.momentumCoeff) * 5));
-      return {
+    // Indicator B: Bollinger Band Breakouts
+    if (currentPrice > upperBand) {
+      bullishScore += 30;
+      reasons.push("📈 Price broke above Upper Bollinger Band (Volatility expansion).");
+    } else if (currentPrice < lowerBand) {
+      bearishScore += 30;
+      reasons.push("📉 Price dropped below Lower Bollinger Band (Selling expansion).");
+    }
+
+    // Indicator C: RSI Overbought/Oversold Reversals
+    if (rsi !== null) {
+      if (rsi < this.thresholds.rsiOversold) {
+        bullishScore += 20;
+        reasons.push(`🔥 RSI is deeply oversold (${rsi.toFixed(1)}).`);
+      } else if (rsi > this.thresholds.rsiOverbought) {
+        bearishScore += 20;
+        reasons.push(`⚠️ RSI is overbought (${rsi.toFixed(1)}).`);
+      }
+    }
+
+    // Indicator D: Stochastic Oscillator Reversals
+    if (stoch) {
+      if (stoch.k < 20 && stoch.k > stoch.d) {
+        bullishScore += 15;
+        reasons.push("🔄 Stochastic Oscillator bullish crossover in oversold territory.");
+      } else if (stoch.k > 80 && stoch.k < stoch.d) {
+        bearishScore += 15;
+        reasons.push("🔄 Stochastic Oscillator bearish rejection in overbought territory.");
+      }
+    }
+
+    // --- DECISION ENGINE ---
+    const triggerThreshold = 65; // High confidence threshold required to pass
+    let signal = null;
+
+    if (bullishScore >= triggerThreshold) {
+      const confidence = Math.min(99, bullishScore);
+      const tpPrice = currentPrice + (atr * 1.5);
+      const slPrice = currentPrice - (atr * 1.2);
+      
+      signal = {
         asset,
         type: 'BUY',
         price: currentPrice,
         confidence,
-        reason: `Fast Bullish Breakout: Price crossed above Bollinger Upper Band with sharp upward momentum.`
+        tp: tpPrice,
+        sl: slPrice,
+        expiry: confidence > 85 ? '1 MINUTE' : '5 MINUTES',
+        reason: reasons.slice(0, 2).join(" | ") || "Strong bullish trend fusion."
       };
-    }
+    } else if (bearishScore >= triggerThreshold) {
+      const confidence = Math.min(99, bearishScore);
+      const tpPrice = currentPrice - (atr * 1.5);
+      const slPrice = currentPrice + (atr * 1.2);
 
-    // B. Fast Bearish Breakout
-    if (currentPrice < lowerBand && velocity < -this.thresholds.momentumCoeff) {
-      const confidence = Math.min(98, Math.round(80 + (Math.abs(velocity) / this.thresholds.momentumCoeff) * 5));
-      return {
+      signal = {
         asset,
         type: 'SELL',
         price: currentPrice,
         confidence,
-        reason: `Fast Bearish Breakout: Price dropped below Bollinger Lower Band with high velocity.`
+        tp: tpPrice,
+        sl: slPrice,
+        expiry: confidence > 85 ? '1 MINUTE' : '5 MINUTES',
+        reason: reasons.slice(0, 2).join(" | ") || "Strong bearish trend fusion."
       };
     }
 
-    // C. Ultra-Responsive Reversal
-    if (rsi !== null) {
-      if (rsi < this.thresholds.rsiOversold && priceChangePct > 0.00005) {
-        return {
-          asset,
-          type: 'BUY',
-          price: currentPrice,
-          confidence: 85,
-          reason: `Fast Reversal: Oversold bottom reversal (RSI: ${rsi.toFixed(0)}) identified.`
-        };
-      }
-      if (rsi > this.thresholds.rsiOverbought && priceChangePct < -0.00005) {
-        return {
-          asset,
-          type: 'SELL',
-          price: currentPrice,
-          confidence: 84,
-          reason: `Fast Reversal: Overbought peak rejection (RSI: ${rsi.toFixed(0)}) identified.`
-        };
-      }
-    }
-
-    // D. Low Threshold Volume Spike
-    if (isVolumeSpike && Math.abs(priceChangePct) > this.thresholds.momentumCoeff) {
-      const type = priceChangePct > 0 ? 'BUY' : 'SELL';
-      return {
-        asset,
-        type,
-        price: currentPrice,
-        confidence: 87,
-        reason: `Micro volume spike detected with momentum shift.`
-      };
-    }
-
-    return null;
+    return signal;
   }
+
+  // --- MATHEMATICAL HELPERS ---
 
   computeSMA(prices, period) {
     if (prices.length < period) return 0;
-    const slice = prices.slice(-period);
-    return slice.reduce((sum, val) => sum + val, 0) / period;
+    return prices.slice(-period).reduce((sum, val) => sum + val, 0) / period;
+  }
+
+  computeEMA(prices, period) {
+    if (prices.length === 0) return 0;
+    const k = 2 / (period + 1);
+    let ema = prices[0];
+    for (let i = 1; i < prices.length; i++) {
+      ema = prices[i] * k + ema * (1 - k);
+    }
+    return ema;
   }
 
   computeStdDev(prices, period, mean) {
@@ -157,6 +198,37 @@ class TradingStrategy {
     if (losses === 0) return 100;
     const rs = gains / losses;
     return 100 - 100 / (1 + rs);
+  }
+
+  computeATR(ticks, period) {
+    if (ticks.length < period + 1) return ticks[ticks.length - 1].price * 0.0005; // Fallback
+    let trs = [];
+    for (let i = ticks.length - period; i < ticks.length; i++) {
+      const high = ticks[i].price * 1.0001; // Approximation for High/Low
+      const low = ticks[i].price * 0.9999;
+      const prevClose = ticks[i - 1].price;
+      const tr = Math.max(
+        high - low,
+        Math.abs(high - prevClose),
+        Math.abs(low - prevClose)
+      );
+      trs.push(tr);
+    }
+    return trs.reduce((s, v) => s + v, 0) / period;
+  }
+
+  computeStochastic(prices, period, signalPeriod) {
+    if (prices.length < period) return null;
+    const slice = prices.slice(-period);
+    const current = prices[prices.length - 1];
+    const lowest = Math.min(...slice);
+    const highest = Math.max(...slice);
+
+    if (highest === lowest) return { k: 50, d: 50 };
+    const k = ((current - lowest) / (highest - lowest)) * 100;
+    
+    // Simplified smooth %D estimation
+    return { k, d: k * 0.7 + 15 };
   }
 }
 
