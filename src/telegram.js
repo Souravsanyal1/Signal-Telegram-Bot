@@ -15,87 +15,165 @@ class TelegramManager {
     this.bot = token ? new TelegramBot(token, { polling: !process.env.DISABLE_POLLING }) : null;
     this.chatId = chatId;
 
-    // Admin & paid users list
+    // Admin & paid users database (in-memory)
     this.adminId = '6314449877';
     this.paidUsers = new Set(); 
 
-    // Advanced Trackers for simulated accuracy
+    // Uptime stats
+    this.startTime = Date.now();
     this.totalSignalsSent = 0;
-    this.winScoreRatio = 89.4; // Initialized base statistical winrate
+    this.winScoreRatio = 91.2;
     this.lastSignals = {};
 
-    this.botName = 'TradingBot';
     if (this.bot) {
-      this.bot.getMe().then(me => {
-        this.botName = me.username ? `@${me.username}` : me.first_name;
-        console.log(`🤖 Bot identity fetched successfully: ${this.botName}`);
-      }).catch(err => {
-        console.error('⚠️ Failed to fetch bot details:', err.message);
-      });
       this.setupCommandListeners();
     }
   }
 
+  /**
+   * Helper to verify if user is subscribed to the target Telegram Channel
+   */
+  async checkForceJoin(userId) {
+    if (userId === this.adminId) return true;
+    if (!this.chatId) return true;
+
+    try {
+      const member = await this.bot.getChatMember(this.chatId, userId);
+      const status = member.status;
+      // Member statuses that count as joined
+      return ['creator', 'administrator', 'member'].includes(status);
+    } catch (error) {
+      console.error(`⚠️ Force Join check failed for user ${userId}:`, error.message);
+      // Fallback to true if chat/channel is private or not queryable
+      return true;
+    }
+  }
+
   setupCommandListeners() {
-    this.bot.onText(/\/start/, (msg) => {
+    // 1. Welcome and Membership Gatekeeper
+    this.bot.onText(/\/start/, async (msg) => {
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
+
+      // Force join check
+      const hasJoined = await this.checkForceJoin(userId);
+      if (!hasJoined) {
+        const joinKeyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📢 Join Our Telegram Channel', url: `https://t.me/c/${this.chatId.replace('-100', '')}` || 'https://t.me/Souravsanyal1' }],
+              [{ text: '🔄 Check Membership', callback_data: 'check_membership_status' }]
+            ]
+          },
+          parse_mode: 'HTML'
+        };
+
+        return this.bot.sendMessage(chatId,
+          `⚠️ <b>ACCESS RESTRICTED</b>\n\n` +
+          `You must join our official Telegram channel before using this bot.\n\n` +
+          `Please join the channel using the button below and then click <b>Check Membership</b>.`,
+          joinKeyboard
+        );
+      }
 
       const isAdmin = userId === this.adminId;
       const isPaid = this.paidUsers.has(userId);
 
       if (isAdmin) {
         this.bot.sendMessage(chatId, 
-          `👑 **REAL-TIME SUPER ALGO CONTROL SYSTEM** 👑\n\n` +
-          `Welcome Master Admin. The AI Quantitative Engine is running at **99.8% precision rate**.\n\n` +
-          `📊 **Live Performance Diagnostics:**\n` +
-          `• Signals Transmitted: \`${this.totalSignalsSent}\`\n` +
-          `• Quant Algorithm Winrate: \`${this.winScoreRatio.toFixed(1)}%\`\n\n` +
-          `Use /panel to manage client subscription databases, toggle engines or configure neural levels.`, 
-          { parse_mode: 'Markdown' }
+          `👑 <b>REAL-TIME SUPER QUANT ENGINE (ADMIN)</b> 👑\n\n` +
+          `Welcome Master Admin. Live server status is stable.\n\n` +
+          `📈 <b>Quant Algorithm Statistics:</b>\n` +
+          `• Total Signals: <code>${this.totalSignalsSent}</code>\n` +
+          `• Winrate Average: <code>${this.winScoreRatio.toFixed(1)}%</code>\n` +
+          `• Paid Subscriptions: <code>${this.paidUsers.size}</code>\n` +
+          `• System Uptime: <code>${((Date.now() - this.startTime) / 60000).toFixed(1)} mins</code>\n\n` +
+          `<b>Admin Commands Available:</b>\n` +
+          `👉 <code>/addpaid &lt;UserID&gt;</code> - Add paid user\n` +
+          `👉 <code>/removepaid &lt;UserID&gt;</code> - Remove paid user\n` +
+          `👉 <code>/listpaid</code> - View all paid users\n` +
+          `👉 <code>/panel</code> - View advanced controls`, 
+          { parse_mode: 'HTML' }
         );
       } else if (isPaid) {
         this.bot.sendMessage(chatId,
-          `🟩 **VIP PREMIUM TELEGRAM ENGINE CONNECTED** 🟩\n\n` +
-          `Hello Member! You have unlimited real-time market breakout notifications.\n` +
-          `Use /panel to adjust custom alerts.`,
-          { parse_mode: 'Markdown' }
+          `🟩 <b>VIP MEMBERSHIP CONTROL</b> 🟩\n\n` +
+          `Your subscription is active. Use /panel to adjust custom alerts.`,
+          { parse_mode: 'HTML' }
         );
       } else {
         const opts = {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '💳 Subscribe Now ($29/mo)', callback_data: 'subscribe_info' }],
+              [{ text: '💳 Open Payment Portal', callback_data: 'subscribe_info' }],
               [{ text: '💬 Contact Master Admin', url: 'https://t.me/Souravsanyal1' }]
             ]
           },
-          parse_mode: 'Markdown'
+          parse_mode: 'HTML'
         };
         this.bot.sendMessage(chatId,
-          `🔒 **SUPER ALGORITHMIC VIP ACCESS** 🔒\n\n` +
-          `This bot uses a **Super Advanced Multi-Indicator Fusion Quant Engine** (MACD Crossovers, Bollinger Volatility bands, ATR risk management, and Stochastic Reversals).\n\n` +
-          `Status: **Access Denied (Free tier restricted)**\n` +
-          `Your ID: \`${userId}\`\n\n` +
-          `Unlock unlimited high-speed signals with take-profit and stop-loss calculations.`,
+          `🔒 <b>VIP ACCESS REQUIRED</b> 🔒\n\n` +
+          `This bot uses a Super Advanced Multi-Indicator Fusion Quant Engine (MACD, Bollinger, Stochastic, and ATR).\n\n` +
+          `Status: <b>Access Denied (Free tier restricted)</b>\n` +
+          `Your ID: <code>${userId}</code>\n\n` +
+          `Please purchase a subscription to unlock instant Quotex signals.`,
           opts
         );
       }
     });
 
-    this.bot.onText(/\/panel/, (msg) => {
+    // 2. Admin Commands implementation
+    this.bot.onText(/\/addpaid (.+)/, (msg, match) => {
+      const chatId = msg.chat.id;
+      const userId = String(msg.from.id);
+      if (userId !== this.adminId) return;
+
+      const targetId = match[1].trim();
+      this.paidUsers.add(targetId);
+      this.bot.sendMessage(chatId, `✅ User <code>${targetId}</code> successfully added to Paid list.`, { parse_mode: 'HTML' });
+    });
+
+    this.bot.onText(/\/removepaid (.+)/, (msg, match) => {
+      const chatId = msg.chat.id;
+      const userId = String(msg.from.id);
+      if (userId !== this.adminId) return;
+
+      const targetId = match[1].trim();
+      if (this.paidUsers.delete(targetId)) {
+        this.bot.sendMessage(chatId, `✅ User <code>${targetId}</code> removed from Paid list.`, { parse_mode: 'HTML' });
+      } else {
+        this.bot.sendMessage(chatId, `⚠️ User <code>${targetId}</code> not found in Paid list.`, { parse_mode: 'HTML' });
+      }
+    });
+
+    this.bot.onText(/\/listpaid/, (msg) => {
+      const chatId = msg.chat.id;
+      const userId = String(msg.from.id);
+      if (userId !== this.adminId) return;
+
+      if (this.paidUsers.size === 0) {
+        return this.bot.sendMessage(chatId, '🫙 No paid users registered yet.', { parse_mode: 'HTML' });
+      }
+
+      let response = '👥 <b>Active Paid Users:</b>\n';
+      this.paidUsers.forEach(user => {
+        response += `• <code>${user}</code>\n`;
+      });
+      this.bot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+    });
+
+    this.bot.onText(/\/panel/, async (msg) => {
       const chatId = msg.chat.id;
       const userId = String(msg.from.id);
 
       const isAdmin = userId === this.adminId;
       const isPaid = this.paidUsers.has(userId);
 
-      if (!isAdmin && !isPaid) {
-        return this.bot.sendMessage(chatId, '❌ Access Denied. Subscribe first using /start');
-      }
-
+      if (!isAdmin && !isPaid) return;
       this.sendControlPanel(chatId, isAdmin);
     });
 
+    // 3. Callback handlers
     this.bot.on('callback_query', async (query) => {
       const { data, message } = query;
       const chatId = message.chat.id;
@@ -106,16 +184,23 @@ class TelegramManager {
 
       await this.bot.answerCallbackQuery(query.id);
 
+      if (data === 'check_membership_status') {
+        const hasJoined = await this.checkForceJoin(userId);
+        if (hasJoined) {
+          this.bot.sendMessage(chatId, '✅ Thank you! Membership verified. Type /start to open menu.', { parse_mode: 'HTML' });
+        } else {
+          this.bot.sendMessage(chatId, '❌ You still have not joined our channel. Please join first and retry.', { parse_mode: 'HTML' });
+        }
+        return;
+      }
+
       if (data === 'subscribe_info') {
         return this.bot.sendMessage(chatId, 
-          `⭐️ **VIP MULTI-INDICATOR SUBSCRIBER KEY** ⭐️\n\n` +
-          `• MACD Golden Crossings alerts\n` +
-          `• Stochastic Peak reversals warnings\n` +
-          `• ATR-computed Stop-Loss and Take-Profit points\n` +
-          `• Fast Recommended Expirations (1 MIN & 5 MIN)\n\n` +
-          `💸 *Price: $29/Month*\n` +
-          `To activate, send your ID (\`${userId}\`) to the admin: @Souravsanyal1`,
-          { parse_mode: 'Markdown' }
+          `⭐️ <b>VIP PREMIUM PAYMENT INFO</b> ⭐️\n\n` +
+          `Open our Web Portal to pay via Bkash, Nagad or Dollars:\n` +
+          `👉 <a href="https://souravsanyal1.github.io/Signal-Telegram-Bot/payment/index.html">Click Here to Open Payment Web Portal</a>\n\n` +
+          `Your Telegram ID: <code>${userId}</code> (Copy this to the payment form)`,
+          { parse_mode: 'HTML', disable_web_page_preview: true }
         );
       }
 
@@ -124,25 +209,22 @@ class TelegramManager {
       if (data.startsWith('set_sens_')) {
         const newSens = data.split('_')[2];
         config.strategy.sensitivity = newSens;
-        this.bot.sendMessage(chatId, `⚙️ Quant Engine Sensitivity adjusted: **${newSens.toUpperCase()}**`, { parse_mode: 'Markdown' });
+        this.bot.sendMessage(chatId, `⚙️ Sensitivity adjusted: <b>${newSens.toUpperCase()}</b>`, { parse_mode: 'HTML' });
       }
 
       if (data === 'toggle_mode') {
         if (!isAdmin) return;
         config.websocket.simulate = !config.websocket.simulate;
-        this.bot.sendMessage(chatId, `🔄 Core engine routed! Simulation: **${config.websocket.simulate ? 'ENABLED' : 'DISABLED (LIVE MARKET)'}**`, { parse_mode: 'Markdown' });
+        this.bot.sendMessage(chatId, `🔄 Engine Mode: <b>${config.websocket.simulate ? 'Simulator' : 'Live WebSocket'}</b>`, { parse_mode: 'HTML' });
       }
 
       if (data === 'test_signal') {
-        this.bot.sendMessage(chatId, `🧪 Initiating premium manual neural-network test signal...`);
+        this.bot.sendMessage(chatId, `🧪 Sending live VIP signal test to group...`);
         this.sendSignal({
-          asset: 'BTC/USD (SUPER-TEST)',
+          asset: 'EUR/USD',
           type: 'BUY',
-          price: 67850.50,
+          price: 1.08250,
           confidence: 96,
-          tp: 68120.00,
-          sl: 67650.00,
-          expiry: '1 MINUTE',
           reason: 'Manual breakout test triggered from admin panel'
         });
       }
@@ -156,7 +238,7 @@ class TelegramManager {
         { text: '🟡 Sens: Medium', callback_data: 'set_sens_medium' }
       ],
       [
-        { text: '🧪 Run Advanced Test', callback_data: 'test_signal' }
+        { text: '🧪 Run VIP Test', callback_data: 'test_signal' }
       ]
     ];
 
@@ -168,17 +250,15 @@ class TelegramManager {
 
     const opts = {
       reply_markup: { inline_keyboard },
-      parse_mode: 'Markdown'
+      parse_mode: 'HTML'
     };
 
     this.bot.sendMessage(chatId, 
-      `🛠 **VIP ADVANCED QUANT PANEL**\n\n` +
-      `System Status:\n` +
-      `• Uptime Diagnostics: \`Active 24/7\`\n` +
-      `• Signal Transmissions: \`${this.totalSignalsSent}\`\n` +
-      `• Algorithm Sensitivity: \`${config.strategy.sensitivity.toUpperCase()}\`\n` +
-      `• Engine Route: \`${config.websocket.simulate ? 'Market Simulator' : 'Live WebSocket Stream'}\`\n\n` +
-      `Choose a parameter modification below:`, 
+      `🛠 <b>VIP QUANT CONTROL CENTER</b>\n\n` +
+      `• Total Signals: <code>${this.totalSignalsSent}</code>\n` +
+      `• Sensitivity: <code>${config.strategy.sensitivity.toUpperCase()}</code>\n` +
+      `• Engine Mode: <code>${config.websocket.simulate ? 'Simulator' : 'Live WebSocket'}</code>\n\n` +
+      `Modify engine parameters below:`, 
       opts
     );
   }
@@ -187,7 +267,7 @@ class TelegramManager {
    * Send a formatted signal with dynamic ATR and TP/SL coordinates to Telegram
    */
   async sendSignal(signal) {
-    const { asset, type, price, confidence, reason, tp, sl, expiry } = signal;
+    const { asset, type, price, confidence, reason } = signal;
     const now = Date.now();
 
     const last = this.lastSignals[asset];
@@ -200,20 +280,17 @@ class TelegramManager {
     this.lastSignals[asset] = { type, timestamp: now, price };
     this.totalSignalsSent++;
 
-    // Randomize dynamic winrate slightly around high 89-94% for authentic trading engine stats
-    this.winScoreRatio = 89.0 + Math.random() * 5.0;
-
     let message = '';
     const formattedPrice = price.toFixed(asset.includes('BTC') ? 2 : 5);
     const timeString = new Date().toLocaleTimeString('en-US', { hour12: false });
 
-    // HTML escape helper to prevent tag parsing errors in reason text
+    // Escape HTML strings
     const escapeHTML = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapedReason = escapeHTML(reason);
 
-    // Determine Market Type (Real vs OTC)
+    // Dynamic Quotex Real/OTC Market checking
     const isOTC = asset.toUpperCase().includes('OTC') || new Date().getDay() === 0 || new Date().getDay() === 6;
-    const marketType = isOTC ? 'OTC Market' : 'Real Market';
+    const marketType = isOTC ? 'Quotex OTC Market' : 'Quotex Real Market';
 
     if (type === 'BUY') {
       message = `🟩🟩🟩 <b>REAL-TIME VIP SIGNAL</b> 🟩🟩🟩\n\n` +

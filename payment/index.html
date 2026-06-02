@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIP Trading Bot Payment Portal</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #090a0f;
+      --bg-card: rgba(18, 20, 32, 0.65);
+      --primary-neon: #00f2fe;
+      --secondary-neon: #4facfe;
+      --accent-magenta: #f35588;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border-glow: rgba(0, 242, 254, 0.15);
+      --green-success: #10b981;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-dark) 70%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+    }
+
+    /* Ambient Background Glows */
+    .glow-sphere {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.08) 0%, transparent 70%);
+      z-index: -1;
+      filter: blur(40px);
+    }
+    .glow-left { top: 10%; left: -100px; }
+    .glow-right { bottom: 10%; right: -100px; }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      z-index: 2;
+    }
+
+    header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      letter-spacing: -1px;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 300;
+    }
+
+    /* Toggle Switch Currency */
+    .currency-switch {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px;
+      border-radius: 30px;
+      margin-bottom: 2.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .currency-btn {
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .currency-btn.active {
+      background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+      color: #000;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+    }
+
+    /* Card Wrapper */
+    .pricing-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      width: 100%;
+      max-width: 1000px;
+      margin-bottom: 3rem;
+      z-index: 2;
+    }
+
+    /* Glassmorphic Pricing Card */
+    .price-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(15px);
+      border: 1px solid var(--border-glow);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .price-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--primary-neon);
+      box-shadow: 0 10px 30px rgba(0, 242, 254, 0.15);
+    }
+
+    .price-card.popular {
+      border-color: var(--accent-magenta);
+      box-shadow: 0 0 20px rgba(243, 85, 136, 0.15);
+    }
+
+    .price-card.popular::before {
+      content: 'MOST POPULAR';
+      position: absolute;
+      top: 15px;
+      right: -35px;
+      background: var(--accent-magenta);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 4px 40px;
+      transform: rotate(45deg);
+    }
+
+    .price-card h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+      color: #fff;
+    }
+
+    .price-card .price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .price-card .features-list {
+      list-style: none;
+      text-align: left;
+      margin-bottom: 2rem;
+      flex-grow: 1;
+    }
+
+    .price-card .features-list li {
+      margin-bottom: 0.8rem;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .price-card .features-list li::before {
+      content: '✓';
+      color: var(--primary-neon);
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    .select-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .select-btn:hover, .price-card.popular .select-btn {
+      background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+      color: #000;
+      border: none;
+      box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3);
+    }
+
+    /* Checkout Overlay Portal */
+    .checkout-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(9, 10, 15, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .checkout-modal.show {
+      display: flex;
+      opacity: 1;
+    }
+
+    .modal-content {
+      background: #111322;
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      border-radius: 28px;
+      padding: 3rem;
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .close-modal:hover {
+      color: #fff;
+    }
+
+    .payment-methods {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin: 1.5rem 0;
+    }
+
+    .pay-logo {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .pay-logo.active {
+      border-color: var(--primary-neon);
+      box-shadow: 0 0 10px var(--border-glow);
+    }
+
+    .form-group {
+      text-align: left;
+      margin-bottom: 1.2rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus {
+      border-color: var(--primary-neon);
+    }
+
+    .submit-pay-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--primary-neon), var(--secondary-neon));
+      border: none;
+      border-radius: 12px;
+      color: #000;
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 1.05rem;
+      margin-top: 1rem;
+      transition: box-shadow 0.3s;
+    }
+
+    .submit-pay-btn:hover {
+      box-shadow: 0 5px 20px rgba(0, 242, 254, 0.4);
+    }
+
+    /* Success Screen */
+    .success-panel {
+      display: none;
+    }
+
+    .success-panel h2 {
+      color: var(--green-success);
+      margin-bottom: 1rem;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .success-panel p {
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="glow-sphere glow-left"></div>
+  <div class="glow-sphere glow-right"></div>
+
+  <header>
+    <h1>VIP SIGNAL ALGO BOT</h1>
+    <p>Unlock professional real-time trading notifications</p>
+  </header>
+
+  <!-- Currency Switcher -->
+  <div class="currency-switch" id="currencySwitcher">
+    <div class="currency-btn active" id="btnUSD">USD ($)</div>
+    <div class="currency-btn" id="btnBDT">BDT (৳)</div>
+  </div>
+
+  <!-- Pricing Cards Grid -->
+  <div class="pricing-container">
+    <!-- Card 1 -->
+    <div class="price-card">
+      <h3>Starter Plan</h3>
+      <div class="price" id="priceStarter">$15<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+      <ul class="features-list">
+        <li>Real-time Forex Signal Engine</li>
+        <li>1 Minute Candle Breakouts</li>
+        <li>Dynamic Cooldown settings</li>
+        <li>24/7 Server Uptime</li>
+      </ul>
+      <button class="select-btn" onclick="openCheckout('Starter Plan')">Select Plan</button>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="price-card popular">
+      <h3>Pro VIP Plan</h3>
+      <div class="price" id="pricePro">$29<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">/mo</span></div>
+      <ul class="features-list">
+        <li>Forex + Crypto Fusion Indices</li>
+        <li>Advanced MACD Golden Crossings</li>
+        <li>Bollinger Band expansion indicator</li>
+        <li>Force Join + Admin panel privileges</li>
+      </ul>
+      <button class="select-btn" onclick="openCheckout('Pro VIP Plan')">Select Plan</button>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="price-card">
+      <h3>Lifetime Plan</h3>
+      <div class="price" id="priceLifetime">$99<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">/one-time</span></div>
+      <ul class="features-list">
+        <li>All Forex & Crypto modules</li>
+        <li>Lifetime license key validity</li>
+        <li>Direct Developer API support</li>
+        <li>VIP Trading Community Access</li>
+      </ul>
+      <button class="select-btn" onclick="openCheckout('Lifetime Plan')">Select Plan</button>
+    </div>
+  </div>
+
+  <!-- Modal Checkout -->
+  <div class="checkout-modal" id="checkoutModal">
+    <div class="modal-content">
+      <button class="close-modal" onclick="closeCheckout()">&times;</button>
+      
+      <!-- Checkout Form Panel -->
+      <div id="checkoutFormPanel">
+        <h2 style="margin-bottom: 0.5rem; font-family: 'Outfit'; font-size: 1.8rem;" id="modalPlanTitle">Checkout</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Select your preferred gateway and insert details</p>
+
+        <!-- Dynamic Gateway Logos -->
+        <div class="payment-methods">
+          <div class="pay-logo active" onclick="selectGateway('bkash', this)" id="gw1">bKash</div>
+          <div class="pay-logo" onclick="selectGateway('nagad', this)" id="gw2">Nagad</div>
+          <div class="pay-logo" onclick="selectGateway('binance', this)" id="gw3">Binance Pay</div>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--accent-magenta); margin-bottom: 1.5rem;" id="gatewayInstruction">
+          Send payment to Bkash Personal number: <b>+8801700000000</b>
+        </p>
+
+        <form id="paymentDetailsForm" onsubmit="submitPayment(event)">
+          <div class="form-group">
+            <label for="telegramId">YOUR TELEGRAM USER ID</label>
+            <input type="text" id="telegramId" required placeholder="E.g. 6314449877">
+          </div>
+          <div class="form-group">
+            <label for="transactionId">TRANSACTION ID (TXNID)</label>
+            <input type="text" id="transactionId" required placeholder="E.g. AX9283JS8">
+          </div>
+          <button type="submit" class="submit-pay-btn">Confirm Subscription</button>
+        </form>
+      </div>
+
+      <!-- Success Panel -->
+      <div class="success-panel" id="successPanel">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+        <h2>Payment Submitted Successfully!</h2>
+        <p>Your transaction has been queued for verification. The admin will verify your transaction ID and activate your Telegram VIP subscription keys within 5-15 minutes.</p>
+        <button class="submit-pay-btn" onclick="closeCheckout()">Close Portal</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeCurrency = 'USD';
+    let activeGateway = 'bkash';
+
+    // Pricing maps
+    const prices = {
+      USD: { Starter: '$15', Pro: '$29', Lifetime: '$99' },
+      BDT: { Starter: '৳1,700', Pro: '৳3,200', Lifetime: '৳11,000' }
+    };
+
+    const currencySwitcher = document.getElementById('currencySwitcher');
+    const btnUSD = document.getElementById('btnUSD');
+    const btnBDT = document.getElementById('btnBDT');
+
+    currencySwitcher.addEventListener('click', () => {
+      if (activeCurrency === 'USD') {
+        activeCurrency = 'BDT';
+        btnUSD.classList.remove('active');
+        btnBDT.classList.add('active');
+      } else {
+        activeCurrency = 'USD';
+        btnBDT.classList.remove('active');
+        btnUSD.classList.add('active');
+      }
+      updatePricingTable();
+    });
+
+    function updatePricingTable() {
+      document.getElementById('priceStarter').innerHTML = prices[activeCurrency].Starter + `<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">${activeCurrency === 'USD' ? '/mo' : '/মাস'}</span>`;
+      document.getElementById('pricePro').innerHTML = prices[activeCurrency].Pro + `<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">${activeCurrency === 'USD' ? '/mo' : '/মাস'}</span>`;
+      document.getElementById('priceLifetime').innerHTML = prices[activeCurrency].Lifetime + `<span style="font-size: 1rem; font-weight: 400; color: var(--text-muted);">${activeCurrency === 'USD' ? '/one-time' : '/এককালীন'}</span>`;
+    }
+
+    // Checkout modal logic
+    function openCheckout(planName) {
+      document.getElementById('modalPlanTitle').innerText = planName;
+      document.getElementById('checkoutFormPanel').style.display = 'block';
+      document.getElementById('successPanel').style.display = 'none';
+      
+      const modal = document.getElementById('checkoutModal');
+      modal.classList.add('show');
+    }
+
+    function closeCheckout() {
+      const modal = document.getElementById('checkoutModal');
+      modal.classList.remove('show');
+    }
+
+    function selectGateway(gatewayName, element) {
+      activeGateway = gatewayName;
+      
+      // Update active styling
+      document.querySelectorAll('.pay-logo').forEach(el => el.classList.remove('active'));
+      element.classList.add('active');
+
+      const instruction = document.getElementById('gatewayInstruction');
+      if (gatewayName === 'bkash') {
+        instruction.innerHTML = 'Send payment to bKash Personal: <b>+88017XXXXXXXX</b>';
+      } else if (gatewayName === 'nagad') {
+        instruction.innerHTML = 'Send payment to Nagad Personal: <b>+88019XXXXXXXX</b>';
+      } else {
+        instruction.innerHTML = 'Send Binance USD (USDT) to Pay ID: <b>928374982</b>';
+      }
+    }
+
+    function submitPayment(event) {
+      event.preventDefault();
+      
+      // Capture details
+      const telegramId = document.getElementById('telegramId').value;
+      const txnId = document.getElementById('transactionId').value;
+
+      console.log('Payment submitted:', { telegramId, txnId, activeGateway });
+
+      // Shift screen to success panel
+      document.getElementById('checkoutFormPanel').style.display = 'none';
+      document.getElementById('successPanel').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
